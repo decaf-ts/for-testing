@@ -2,7 +2,7 @@ name: "Publish on Release"
 
 # Triggered by the GitHub Release created in release-on-tag.yaml. Thin caller of
 # decaf-ts/reusable-actions/.github/workflows/publish-on-release.yaml
-# (build, test, publish @decaf-ts/ts-workspace to npm).
+# (build, test, publish @decaf-ts/for-testing to npm).
 
 on:
   release:

@@ -150,7 +150,7 @@ docker-publish:
   services:
     - docker:20.10.21-dind
   variables:
-    BASE_NAME: ts-workspace
+    BASE_NAME: for-testing
     LATEST_NAME: ${BASE_NAME}-latest
   before_script:
     - apk add jq
@@ -160,9 +160,9 @@ docker-publish:
     - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
   script:
     - echo "Building docker image to be published on $CI_REGISTRY."
-    - docker build --network host -t $CI_REGISTRY/decaf-ts/ts-workspace:${IMAGE_NAME} -t $CI_REGISTRY/decaf-ts/ts-workspace:${LATEST_NAME} -f Dockerfile .
-    - docker push $CI_REGISTRY/decaf-ts/ts-workspace:${IMAGE_NAME}
-    - docker push $CI_REGISTRY/decaf-ts/ts-workspace:${LATEST_NAME}
+    - docker build --network host -t $CI_REGISTRY/decaf-ts/for-testing:${IMAGE_NAME} -t $CI_REGISTRY/decaf-ts/for-testing:${LATEST_NAME} -f Dockerfile .
+    - docker push $CI_REGISTRY/decaf-ts/for-testing:${IMAGE_NAME}
+    - docker push $CI_REGISTRY/decaf-ts/for-testing:${LATEST_NAME}
   rules:
     - if: '$CI_COMMIT_BRANCH == "master" && $CI_COMMIT_MESSAGE =~ /-no-ci/'
       when: never

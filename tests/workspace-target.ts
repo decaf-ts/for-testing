@@ -12,7 +12,7 @@ const DEFAULT_TARGET: WorkspaceTarget = "src";
 const TARGET_SPECIFIERS: Record<WorkspaceTarget, string> = {
   src: "../src",
   lib: "../lib/cjs/index.cjs",
-  dist: "../dist/ts-workspace.cjs",
+  dist: "../dist/for-testing.cjs",
 };
 
 function normalizeImport<T>(importPromise: Promise<T>): Promise<T> {

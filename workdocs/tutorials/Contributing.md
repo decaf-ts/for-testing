@@ -1,7 +1,7 @@
 ## Contributing
 
-[fork]: https://github.com/decaf-ts/ts-workspace/fork
-[pr]: https://github.com/decaf-ts/ts-workspace/compare
+[fork]: https://github.com/decaf-ts/for-testing/fork
+[pr]: https://github.com/decaf-ts/for-testing/compare
 [code-of-conduct]: CODE_OF_CONDUCT.md
 [developers-guide]: ./For%20Developers.md
 
@@ -18,8 +18,8 @@ to abide by its terms.
 ### Bootstrapping the project
 
 ```bash
-git clone https://github.com/decaf-ts/ts-workspace.git
-cd ts-workspace
+git clone https://github.com/decaf-ts/for-testing.git
+cd for-testing
 npm install
 npm run build
 ```

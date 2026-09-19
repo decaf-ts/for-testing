@@ -1,4 +1,4 @@
-[![Banner](./workdocs/assets/Banner.png)](https://decaf-ts.github.io/ts-workspace/)
-## Typescript Template
+[![Banner](./workdocs/assets/Banner.png)](https://decaf-ts.github.io/for-testing/)
+## @decaf-ts/for-testing
 
-This repository is meant to provide an enterprise template for any standard Typescript project
+Testing toolkit for decaf-ts packages: evidence reporting, jest helpers, performance running and Xray/AgileTest teardowns, with a UI testing surface.

@@ -54,7 +54,7 @@ jobs:
     name: Docker base image
     uses: decaf-ts/reusable-actions/.github/workflows/docker-publish.yml@master
     with:
-      image: decaf-ts/ts-workspace
+      image: decaf-ts/for-testing
       dockerfile: Dockerfile
       context: .
       tag-prefix: "base-"

@@ -1,13 +1,31 @@
 {
-  "name": "@decaf-ts/ts-workspace",
-  "version": "3.10.25",
-  "description": "template for ts projects",
+  "name": "@decaf-ts/for-testing",
+  "version": "1.0.0",
+  "description": "Backend and UI testing toolkit for decaf-ts packages: evidence reporting, jest helpers, performance runner and Xray/AgileTest teardowns",
   "type": "module",
   "exports": {
-    "types": "./lib/types/index.d.ts",
-    "import": "./lib/esm/index.js",
-    "require": "./lib/cjs/index.cjs",
-    "default": "./lib/esm/index.js"
+    ".": {
+      "import": {
+        "types": "./lib/types/index.d.mts",
+        "default": "./lib/esm/index.js"
+      },
+      "require": {
+        "types": "./lib/types/index.d.cts",
+        "default": "./lib/cjs/index.cjs"
+      },
+      "default": "./lib/esm/index.js"
+    },
+    "./ui": {
+      "import": {
+        "types": "./lib/types/ui/index.d.mts",
+        "default": "./lib/esm/ui/index.js"
+      },
+      "require": {
+        "types": "./lib/types/ui/index.d.cts",
+        "default": "./lib/cjs/ui/index.cjs"
+      },
+      "default": "./lib/esm/ui/index.js"
+    }
   },
   "main": "./lib/cjs/index.cjs",
   "module": "./lib/esm/index.js",
@@ -50,13 +68,13 @@
     "publish-docs": "docker run -it --rm --user $(id -u):$(id -g) -v \"$(pwd)/workdocs/confluence:/content\" -e ATLASSIAN_API_TOKEN=\"$(DECAF_BANNER=false decaf utils credentials get --name confluence --logLevel error)\" ghcr.io/markdown-confluence/publish:latest",
     "docker:login": "docker login ghcr.io -u \"$(DECAF_BANNER=false decaf utils credentials get --name docker-user --legacy-file .dockeruser --logLevel error)\" -p \"$(DECAF_BANNER=false decaf utils credentials get --name docker --legacy-file .dockertoken --logLevel error)\"",
     "docker:build": "npm run docker:build-base",
-    "docker:build-base": "NPM_TOKEN=\"$(DECAF_BANNER=false decaf utils credentials get --name npm --logLevel error)\" DOCKER_BUILDKIT=1 docker build --secret id=TOKEN,env=NPM_TOKEN -t ghcr.io/decaf-ts/ts-workspace:base-$(cat package.json | jq -r '.version') -t ghcr.io/decaf-ts/ts-workspace:base-${VERSION:-latest} -f ./Dockerfile .",
+    "docker:build-base": "NPM_TOKEN=\"$(DECAF_BANNER=false decaf utils credentials get --name npm --logLevel error)\" DOCKER_BUILDKIT=1 docker build --secret id=TOKEN,env=NPM_TOKEN -t ghcr.io/decaf-ts/for-testing:base-$(cat package.json | jq -r '.version') -t ghcr.io/decaf-ts/for-testing:base-${VERSION:-latest} -f ./Dockerfile .",
     "docker:publish": "npm run docker:publish-base",
-    "docker:publish-base": "docker push ghcr.io/decaf-ts/ts-workspace:base-$(cat package.json | jq -r '.version') && docker push ghcr.io/decaf-ts/ts-workspace:base-${VERSION:-latest}"
+    "docker:publish-base": "docker push ghcr.io/decaf-ts/for-testing:base-$(cat package.json | jq -r '.version') && docker push ghcr.io/decaf-ts/for-testing:base-${VERSION:-latest}"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/decaf-ts/ts-workspace.git"
+    "url": "git+https://github.com/decaf-ts/for-testing.git"
   },
   "engines": {
     "node": ">=20.0.0",
@@ -67,33 +85,47 @@
     "dist"
   ],
   "keywords": [
-    "plantuml",
-    "mermaid",
-    "uml",
-    "drawio",
-    "mddocs",
-    "md",
-    "jsdoc",
-    "doc",
-    "docs",
-    "documentation",
     "test",
-    "reports",
-    "confluence",
-    "ci/cd",
-    "ci",
-    "cd",
-    "template",
+    "testing",
+    "test-utils",
+    "reporter",
+    "evidence",
+    "junit",
+    "xray",
+    "agiletest",
+    "performance",
+    "jest",
+    "playwright",
+    "decaf-ts",
     "typescript",
     "ts"
   ],
   "author": "Tiago Venceslau",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/decaf-ts/ts-workspace/issues"
+    "url": "https://github.com/decaf-ts/for-testing/issues"
   },
-  "homepage": "https://github.com/decaf-ts/ts-workspace#readme",
-  "devDependencies": {
-    "@decaf-ts/utils": "latest"
+  "homepage": "https://github.com/decaf-ts/for-testing#readme",
+  "dependencies": {
+    "@decaf-ts/db-decorators": "latest",
+    "@decaf-ts/logging": "latest",
+    "@decaf-ts/utils": "latest",
+    "styled-string-builder": "latest"
+  },
+  "peerDependencies": {
+    "chartjs-node-canvas": "^5.0.0",
+    "jest-html-reporters": "^3.1.7",
+    "json2md": "^2.0.3"
+  },
+  "peerDependenciesMeta": {
+    "chartjs-node-canvas": {
+      "optional": true
+    },
+    "jest-html-reporters": {
+      "optional": true
+    },
+    "json2md": {
+      "optional": true
+    }
   }
 }

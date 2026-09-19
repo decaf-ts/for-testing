@@ -32,8 +32,8 @@
       "useLongnameInNav": false
     },
     "better-docs": {
-      "name": "ts-template",
-      "title": "TypeScript workspace template",
+      "name": "for-testing",
+      "title": "@decaf-ts/for-testing",
       "hideGenerator": true,
       "useLongnameInNav": false,
       "navLinks": [
@@ -47,7 +47,7 @@
         },
         {
           "label": "Github Repository",
-          "href": "https://github.com/decaf-ts/ts-workspace#readme"
+          "href": "https://github.com/decaf-ts/for-testing#readme"
         },
         {
           "label": "Github Profile",

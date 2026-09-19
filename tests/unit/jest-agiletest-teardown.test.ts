@@ -1,0 +1,167 @@
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { runJestAgileTestTeardown } from "../../src";
+
+type MockResponseInit = {
+  ok: boolean;
+  status: number;
+  statusText: string;
+  body: string;
+};
+
+const makeResponse = ({
+  ok,
+  status,
+  statusText,
+  body,
+}: MockResponseInit): Response =>
+  ({
+    ok,
+    status,
+    statusText,
+    text: async () => body,
+  }) as Response;
+
+describe("runJestAgileTestTeardown", () => {
+  const originalEnv = process.env;
+  const originalFetch = globalThis.fetch;
+  let tempRoot = "";
+  const payloadPath = path.join(
+    process.cwd(),
+    "workdocs",
+    "reports",
+    "evidences",
+    "tests",
+    "agiletest.json"
+  );
+  let fetchMock: jest.Mock;
+
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+    tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "decaf-agiletest-"));
+    fetchMock = jest.fn();
+    globalThis.fetch = fetchMock as typeof fetch;
+    jest.spyOn(console, "log").mockImplementation(() => undefined);
+    jest.spyOn(console, "warn").mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+    globalThis.fetch = originalFetch;
+    jest.restoreAllMocks();
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+    fs.rmSync(payloadPath, { force: true });
+  });
+
+  it("skips teardown when reporting is disabled", async () => {
+    process.env.ENABLE_AGILETEST_REPORT = "false";
+
+    await runJestAgileTestTeardown();
+
+    expect(console.log).toHaveBeenCalledWith(
+      "🦘🦘🦘 AgileTest reporting is disabled; skipping teardown. 🦘🦘🦘"
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("writes the payload and uploads it when reporting is enabled", async () => {
+    const assetsRoot = path.join(tempRoot, "assets");
+    const junitPath = path.join(tempRoot, "junit.xml");
+    fs.mkdirSync(path.join(assetsRoot, "PTP-123"), { recursive: true });
+    fs.writeFileSync(path.join(assetsRoot, "PTP-123", "evidence.txt"), "hello");
+    fs.writeFileSync(
+      junitPath,
+      [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        "<testsuites>",
+        '  <testsuite name="PTP-123">',
+        '    <testcase classname="PTP-123" name="STEP 1 - collects evidence"/>',
+        "  </testsuite>",
+        "</testsuites>",
+      ].join("\n")
+    );
+
+    process.env.ENABLE_AGILETEST_REPORT = "true";
+    process.env.AGILETEST_HOST = "https://acme.atlassian.net";
+    process.env.AGILETEST_EMAIL = "user@acme.example";
+    process.env.AGILETEST_API_TOKEN = "api-token";
+    process.env.TEST_REPORTER_STORAGE_PATH = assetsRoot;
+    process.env.JUNIT_PATH = junitPath;
+    process.env.TEST_EXECUTION_KEY = "AGILETEST-999";
+
+    fetchMock.mockResolvedValueOnce(
+      makeResponse({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        body: "{}",
+      })
+    );
+
+    await runJestAgileTestTeardown();
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(
+      "https://acme.atlassian.net/rest/agiletest/1.0/test/import"
+    );
+    expect((init.headers as Record<string, string>).Authorization).toContain(
+      "Basic "
+    );
+    expect(fs.existsSync(payloadPath)).toBe(true);
+
+    const payload = JSON.parse(fs.readFileSync(payloadPath, "utf8"));
+    expect(payload.testExecutionKey).toBe("AGILETEST-999");
+    expect(payload.tests).toHaveLength(1);
+    expect(payload.tests[0].testKey).toBe("PTP-123");
+    expect(payload.tests[0].evidence).toHaveLength(1);
+    expect(payload.tests[0].steps).toHaveLength(1);
+    expect(payload.tests[0].steps[0].status).toBe("PASSED");
+  });
+
+  it("writes only the payload when credentials are missing", async () => {
+    const assetsRoot = path.join(tempRoot, "assets");
+    const junitPath = path.join(tempRoot, "junit.xml");
+    fs.mkdirSync(path.join(assetsRoot, "PTP-123"), { recursive: true });
+    fs.writeFileSync(
+      junitPath,
+      [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        "<testsuites>",
+        '  <testsuite name="PTP-123">',
+        '    <testcase classname="PTP-123" name="STEP 1 - collects evidence"/>',
+        "  </testsuite>",
+        "</testsuites>",
+      ].join("\n")
+    );
+
+    process.env.ENABLE_AGILETEST_REPORT = "true";
+    delete process.env.AGILETEST_HOST;
+    delete process.env.AGILETEST_EMAIL;
+    delete process.env.AGILETEST_API_TOKEN;
+    process.env.TEST_REPORTER_STORAGE_PATH = assetsRoot;
+    process.env.JUNIT_PATH = junitPath;
+
+    await runJestAgileTestTeardown();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fs.existsSync(payloadPath)).toBe(true);
+    const payload = JSON.parse(fs.readFileSync(payloadPath, "utf8"));
+    expect(payload.tests).toHaveLength(1);
+    expect(payload.tests[0].testKey).toBe("PTP-123");
+  });
+
+  it("throws when the JUnit file is missing", async () => {
+    process.env.ENABLE_AGILETEST_REPORT = "true";
+    process.env.AGILETEST_HOST = "https://acme.atlassian.net";
+    process.env.AGILETEST_EMAIL = "user@acme.example";
+    process.env.AGILETEST_API_TOKEN = "api-token";
+    process.env.JUNIT_PATH = path.join(tempRoot, "missing-junit.xml");
+
+    await expect(runJestAgileTestTeardown()).rejects.toThrow(
+      /JUnit file not found/
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});

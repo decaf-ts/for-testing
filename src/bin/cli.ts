@@ -25,7 +25,7 @@
  *   Timer->>CLI: Counter reaches 0
  *   CLI->>User: Exit process
  *
- * @memberOf module:ts-workspace
+ * @memberOf module:for-testing
  * @see {@link https://nodejs.org/api/process.html#process_process_exit_code|Node.js process.exit()}
  * @see {@link https://developer.mozilla.org/en-US/docs/Web/API/setTimeout|MDN setTimeout()}
  */
@@ -36,7 +36,7 @@
  * @description The countdown timer, initialized to 60 seconds.
  * @summary Used to track the remaining time in the countdown.
  * @type {number}
- * @memberOf module:ts-workspace.cli
+ * @memberOf module:for-testing.cli
  */
 let counter = 60;
 console.log(`This is a poor example of a cli. will stop in ${60} seconds`);
@@ -49,7 +49,7 @@ console.log(`This is a poor example of a cli. will stop in ${60} seconds`);
  * until the counter reaches 0. When the counter reaches 0, the process exits.
  *
  * @return {void}
- * @memberOf module:ts-workspace.cli
+ * @memberOf module:for-testing.cli
  */
 function iterator() {
   setTimeout(() => {

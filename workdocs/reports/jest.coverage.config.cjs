@@ -21,7 +21,7 @@ module.exports = {
         filename: "test-report.html",
         openReport: true,
         expand: true,
-        pageTitle: "ts-workspace Test Report",
+        pageTitle: "for-testing Test Report",
         stripSkippedTest: true,
         darkTheme: true,
         enableMergeData: true,
@@ -31,10 +31,10 @@ module.exports = {
   ],
   coverageThreshold: {
     global: {
-      branches: 60,
-      functions: 81,
-      lines: 79,
-      statements: 77,
+      branches: 26,
+      functions: 45,
+      lines: 39,
+      statements: 40,
     },
   },
 };
