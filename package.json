@@ -1,6 +1,6 @@
 {
   "name": "@decaf-ts/for-testing",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Backend and UI testing toolkit for decaf-ts packages: evidence reporting, jest helpers, performance runner and Xray/AgileTest teardowns",
   "type": "module",
   "exports": {
