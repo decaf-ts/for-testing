@@ -27,15 +27,6 @@ export * from "./jestXrayTeardown";
 export * from "./jestAgileTestTeardown";
 
 /**
- * @description UI testing toolkit namespace.
- * @summary Groups UI-specific test helpers under a single namespace so browser and
- * component helpers can be added without polluting the backend toolkit surface.
- * @namespace ui
- * @memberOf module:for-testing
- */
-export * as ui from "./ui";
-
-/**
  * @description Represents the current version of the module.
  * @summary Stores the version for the @decaf-ts/for-testing package. The build
  * replaces the placeholder with the actual version number at publish time.
