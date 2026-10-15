@@ -110,12 +110,14 @@
     "@decaf-ts/db-decorators": "latest",
     "@decaf-ts/logging": "latest",
     "@decaf-ts/utils": "latest",
+    "commander": "^2.20.3",
     "styled-string-builder": "latest"
   },
   "peerDependencies": {
     "chartjs-node-canvas": "^5.0.0",
     "jest-html-reporters": "^3.1.7",
-    "json2md": "^2.0.3"
+    "json2md": "^2.0.3",
+    "playwright": "^1.0.0"
   },
   "peerDependenciesMeta": {
     "chartjs-node-canvas": {
@@ -125,6 +127,9 @@
       "optional": true
     },
     "json2md": {
+      "optional": true
+    },
+    "playwright": {
       "optional": true
     }
   }
