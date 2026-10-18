@@ -110,14 +110,17 @@
     "@decaf-ts/db-decorators": "latest",
     "@decaf-ts/logging": "latest",
     "@decaf-ts/utils": "latest",
-    "commander": "^2.20.3",
+    "commander": "^13.1.0",
     "styled-string-builder": "latest"
   },
   "peerDependencies": {
+    "@playwright/test": ">=1.0.0",
     "chartjs-node-canvas": "^5.0.0",
+    "jest": ">=29.0.0",
     "jest-html-reporters": "^3.1.7",
     "json2md": "^2.0.3",
-    "playwright": "^1.0.0"
+    "playwright": "^1.0.0",
+    "vitest": ">=1.0.0"
   },
   "peerDependenciesMeta": {
     "chartjs-node-canvas": {
@@ -130,6 +133,15 @@
       "optional": true
     },
     "playwright": {
+      "optional": true
+    },
+    "jest": {
+      "optional": true
+    },
+    "vitest": {
+      "optional": true
+    },
+    "@playwright/test": {
       "optional": true
     }
   }

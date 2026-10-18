@@ -23,6 +23,11 @@ export * from "./utils";
 export * from "./jestPerformanceRunner";
 export * from "./reporter";
 export * from "./jest";
+export * from "./expectation-core";
+export * from "./expect";
+export * from "./it";
+export * from "./frameworks/types";
+export * from "./frameworks/resolver";
 export * from "./jestXrayTeardown";
 export * from "./jestAgileTestTeardown";
 

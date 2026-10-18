@@ -46,9 +46,10 @@ describe("scenario CLI options", () => {
     expect(DESKTOP_VIEWPORT).toEqual({ width: 1440, height: 900 });
   });
 
-  it("registers scenario as the module name and run as its command", () => {
+  it("registers test as the module name, scenario as its alias, and run as its command", () => {
     const module = scenario();
-    expect(module.name()).toBe("scenario");
+    expect(module.name()).toBe("test");
+    expect(module.alias()).toBe("scenario");
     expect(module.commands[0].name()).toBe("run");
     expect(module.commands[0].options.map((option: any) => option.long)).toEqual(expect.arrayContaining(["--base-url", "--guide-file", "--screenshots-dir", "--browser", "--headed", "--timeout"]));
   });

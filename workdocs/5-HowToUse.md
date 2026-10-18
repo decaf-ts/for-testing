@@ -81,6 +81,159 @@ outside `A-Za-z0-9._-` is replaced with `-`, and leading dots and dashes are str
 is always written inside the configured evidence root — a reference that would resolve outside
 it is refused with an error.
 
+##### Reported tests with `it` and `it.report`
+
+The package exports a jest-analog `it` facade. Plain registrations proxy straight to the host
+framework's own `it`/`test` primitives, so `it`, `it.skip`, `it.only`, `it.todo`, `it.each` and
+`it.concurrent` behave exactly like the runner you are using:
+
+```typescript
+import { it } from "@decaf-ts/for-testing";
+
+it("registers with the host runner", () => {
+  /* ... */
+});
+it.skip("skipped", () => {
+  /* ... */
+});
+it.only("focused", () => {
+  /* ... */
+});
+it.todo("not written yet");
+```
+
+`it.report(name, fn, opts?)` registers an evidence-reporting test: when the handler throws, its
+`message` and `cause` are persisted through the test-scoped reporter before the error is
+rethrown, so the failure still shows up in the evidence report. The optional options object
+accepts `reporter` (defaults to `getReporter()`) and `timeout` (forwarded to the framework when
+supported):
+
+```typescript
+it.report("creates a resource", async () => {
+  const response = await fetch("https://example.org/api/resource", { method: "POST" });
+  // assertions accumulate through `expect` (next section)
+});
+
+it.report.skip("skipped reported test", () => {
+  /* ... */
+});
+it.report.only("focused reported test", () => {
+  /* ... */
+});
+```
+
+`it.report.each` runs one evidence-reporting test per table row, in both the array form and the
+tagged-template table form. In the tagged form the table headings become named row fields
+(addressable as `$field` or a dotted `$row.field` path) and `$#` expands to the 1-based row
+index:
+
+```typescript
+it.report.each([1, 2])("handles %d", (n: number) => {
+  expect(n).referredToAs("value").to.beDefined();
+});
+
+it.report.each`
+  value | expected
+  ${1}  | ${2}
+  ${3}  | ${4}
+`("doubles $value", ({ value, expected }: { value: number; expected: number }) => {
+  expect(value * 2).referredToAs("doubled").to.be(expected);
+});
+```
+
+> [!TIP]
+> The legacy `itReportsOnFailure(name, handler, skip?)` helper still works but is deprecated;
+> it is now a thin wrapper over `it.report(name, fn)` / `it.report.skip(name, fn)`. Prefer the
+> new surface.
+
+##### Assertions with `expect`
+
+`expect(actual)` builds a chainable, framework-agnostic assertion facade:
+
+```typescript
+import { expect, getReporter, reportObjects } from "@decaf-ts/for-testing";
+
+expect(response.status).referredToAs("status").to.be(200);
+expect(body).referredToAs("body").to.contain("created");
+expect(errors).referredToAs("no errors").not.to.beTruthy();
+
+const reporter = getReporter();
+await reportObjects(reporter, reporter.expect, response);
+```
+
+Supported matchers: `to.be`, `to.equal`, `to.contain`, `to.beGreaterThan`,
+`to.beGreaterThanOrEqual`, `to.beLessThan`, `to.beLessThanOrEqual`, `to.beDefined` and
+`to.beTruthy`. `.not` negates only the next matcher. Like the legacy chain accumulator, each
+matcher records one report line and one failure entry instead of aborting the test, and the
+underlying assertion runs through the host framework's own `expect`, so failure semantics match
+the runner.
+
+Two accumulator scopes share the same API:
+
+- `TestReporter#expect` — a reporter-scoped facade; every assertion made through one reporter
+  instance accumulates on a single report owned by that reporter.
+- the standalone `expect` export — reuses the `expect` facade of the reporter installed through
+  `setReporter` when there is one, otherwise falls back to a shared standalone accumulator.
+
+Accumulated assertions are persisted with `reportObjects(reporter, reporter.expect, response)`,
+which writes the response and report objects and throws when the report carries failed
+assertions.
+
+> [!TIP]
+> The legacy `ReportExpect` chain (`assertToBe`, `assertToContain`, ...) still works but is
+> deprecated; `expect(actual).referredToAs("property").to.*` replaces it.
+
+##### Framework adapters
+
+The reported API resolves a framework adapter that proxies registration and assertions to the
+host runner. Selection order:
+
+1. `configure({ framework: "jest" | "vitest" | "playwright" })` — explicit, process-wide
+2. `DECAF_TEST_FRAMEWORK=jest|vitest|playwright` environment variable
+3. sniffed runner environment (`JEST_WORKER_ID`, `VITEST`/`VITEST_WORKSPACE_ID`/`VITEST_MODE`,
+   `PLAYWRIGHT_TEST`/`PLAYWRIGHT_TEST_BASE_URL`/`PLAYWRIGHT_BROWSERS_PATH`)
+4. otherwise jest, then vitest, then playwright, until one resolves
+
+The resolved adapter is cached process-wide (`resetAdapter()` clears it); when nothing
+resolves, the error names both override knobs. The vitest adapter additionally requires vitest
+to be installed or `globals: true` in the vitest config, and the Playwright adapter requires
+`@playwright/test`. Deviations per framework:
+
+| Capability | jest | vitest | playwright |
+| ---------- | ---- | ------ | ---------- |
+| `it` / `it.skip` / `it.only` / `it.todo` | full | full | `todo` maps to `test.fixme` |
+| `it.each` | full | full | not available (descriptive error) |
+| `it.report.each` (array and tagged-table form) | full | full | full |
+| `it.concurrent` | full | full | not available |
+| `timeout` forwarded to the runner | yes | yes | no (Playwright configures timeouts itself) |
+
+##### Xray / AgileTest report import via the CLI
+
+The decaf CLI module exposes the same post-test importer as the programmatic teardowns:
+
+```sh
+decaf test report xray --junit workdocs/reports/junit/junit-report.xml --upload
+decaf test report agiletest --dry-run
+```
+
+Options for `decaf test report <xray|agiletest> [--options]`:
+
+| Option                 | Purpose                              | Default when omitted                                                                                            |
+| ---------------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `--junit <path>`       | JUnit XML report path                | `JUNIT_PATH` env, else `workdocs/reports/junit/junit-report.xml`                                                 |
+| `--evidences <dir>`    | evidence root directory              | `ASSETS__PATH` env, else `TEST_REPORTER_STORAGE_PATH`, else `workdocs/reports/evidences`                          |
+| `--out <file>`         | payload output file                  | `workdocs/reports/evidences/tests/xray.json` / `agiletest.json`                                                   |
+| `--execution-key <key>`| provider Test Execution issue key    | `XRAY_TEST_EXECUTION_KEY` (xray) / `AGILETEST_TEST_EXECUTION_KEY` (agiletest), else `TEST_EXECUTION_KEY`           |
+| `--dry-run`            | parse only; nothing is written or uploaded | off                                                                                                         |
+| `--upload`             | upload the generated payload to the provider | off                                                                                                       |
+
+Upload credentials are read from the environment: Xray needs `XRAY_CLIENT_ID` and
+`XRAY_CLIENT_SECRET` (they also drive the preconditions synchronization after an upload);
+AgileTest needs `AGILETEST_HOST`, `AGILETEST_EMAIL` and `AGILETEST_API_TOKEN` (optional
+`AGILETEST_BASE_PATH`, default `/rest/agiletest/1.0`, and `AGILETEST_IMPORT_PATH`, default
+`/test/import`). Missing credentials skip the upload with a warning; the payload is still
+written locally.
+
 ##### Consumer/producer orchestration
 
 ```typescript

@@ -4,14 +4,8 @@ import {
   TestReporterStoragePathEnvKey,
 } from "./TestReporter";
 
-/**
- * @description Module-scoped reporter instance installed by
- * {@link setReporter} and consumed by {@link getReporter}
- * @summary Holds the test-scoped {@link TestReporter} used by the jest
- * helpers to persist reports and evidences
- * @memberOf module:for-testing
- */
-let reporter: TestReporter;
+export { getReporter, setReporter } from "./registry";
+
 
 /**
  * @description Ensures the reporter evidence-storage env vars are set
@@ -51,29 +45,6 @@ export async function waitForConfiguredSleep() {
   if (sleepMs === 0) return;
   console.warn(`wait for ${sleepMs}`);
   await new Promise((resolve) => setTimeout(resolve, sleepMs));
-}
-
-/**
- * @description Installs the test-scoped reporter instance
- * @summary Records the {@link TestReporter} later returned by
- * {@link getReporter}, typically in a jest setup file
- * @param {TestReporter} rep the reporter to install
- * @return {void}
- * @memberOf module:for-testing
- */
-export function setReporter(rep: TestReporter) {
-  reporter = rep;
-}
-
-/**
- * @description Returns the test-scoped reporter instance
- * @summary Yields the {@link TestReporter} previously installed through
- * {@link setReporter}
- * @return {TestReporter} the installed reporter (undefined when never set)
- * @memberOf module:for-testing
- */
-export function getReporter() {
-  return reporter;
 }
 
 /**

@@ -15,12 +15,22 @@ The backend toolkit is the default export of the package root:
 - jest helpers (`itReportsOnFailure`, `ReportExpect`) — report failures and evidence directly
   from jest tests, backed by the reporter plumbing (`ensureReporterCollectsEvidencesConfig`,
   `setReporter` / `getReporter`, `reportObjects`) and `runAndReport` for command-execution
-  evidence.
+  evidence. Both are deprecated in favor of the reported-testing API below, but remain fully
+  retrocompatible.
+- reported-testing API — a jest-analog `it` facade (`it`, `it.skip`, `it.only`, `it.todo`,
+  `it.each`, `it.concurrent`, plus `it.report(...)` with `.skip` / `.only` / `.each` for
+  evidence-reporting tests) and a framework-agnostic chainable `expect(actual)
+  .referredToAs(label).to.*` assertion facade (also available as the reporter-scoped
+  `TestReporter#expect`). Registration and assertions are proxied to the host test runner
+  through framework adapters for jest, vitest and Playwright, selected via
+  `configure({ framework })`, the `DECAF_TEST_FRAMEWORK` environment variable or runner
+  environment sniffing.
 - `JestPerformanceRunner` — runs performance scenarios and reports phase tables and charts.
-- `runJestXrayTeardown` / `runJestAgileTestTeardown` — convert the JUnit report and evidence
-  directories into Xray and AgileTest import payloads; the Xray teardown is gated by
-  `ENABLE_XRAY_REPORT`, the AgileTest payload is always written locally, and uploads only
-  happen when the respective credentials are configured.
+- post-test import pipeline — `runJestXrayTeardown` / `runJestAgileTestTeardown` convert the
+  JUnit report and evidence directories into Xray and AgileTest import payloads, and the decaf
+  CLI module exposes the same engine as `decaf test report xray|agiletest`; the Xray teardown
+  is gated by `ENABLE_XRAY_REPORT`, the AgileTest payload is always written locally, and
+  uploads only happen when the respective credentials are configured.
 
 UI-specific helpers are grouped under the `ui` namespace, exported both as the `ui` named
 export of the package root and as the `@decaf-ts/for-testing/ui` subpath. No UI helpers exist
@@ -37,13 +47,16 @@ import * as ui from "@decaf-ts/for-testing/ui";
 
 #### Migrating from `@decaf-ts/utils/tests`
 
-`@decaf-ts/utils/tests` remains published and unchanged, so nothing forces an immediate
-migration. When you are ready:
+`@decaf-ts/utils/tests` remains published, so nothing forces an immediate migration. When you are ready:
 
 1. Install the new package (`npm install --save-dev @decaf-ts/for-testing`) and rewrite the
    imports: `@decaf-ts/utils/tests` → `@decaf-ts/for-testing`. The backend export surface
    (`TestReporter`, the jest helpers, `ConsumerRunner`-based orchestration, the performance
    runner and the teardowns) is unchanged — only the import path moved.
 2. Optionally adopt the new surfaces this package adds: the `ui` namespace and
-   `@decaf-ts/for-testing/ui` subpath (reserved, currently empty but stable), and the
-   `VERSION` / `COMMIT` / `FULL_VERSION` / `PACKAGE_NAME` build constants.
+   `@decaf-ts/for-testing/ui` subpath (reserved, currently empty but stable), the
+   `VERSION` / `COMMIT` / `FULL_VERSION` / `PACKAGE_NAME` build constants, and the
+   reported-testing API (`it` / `it.report`, `expect`) described above. The same reported
+   API is backported verbatim into the `@decaf-ts/utils/tests` subpath; that subpath carries
+   no `utils -> testing` dependency edge, and `@decaf-ts/for-testing` additionally provides
+   the provider teardowns and the `decaf test report` CLI.
