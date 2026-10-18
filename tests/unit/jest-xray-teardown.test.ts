@@ -127,6 +127,42 @@ describe("runJestXrayTeardown", () => {
     expect(payload.tests[0].steps[0].status).toBe("PASSED");
   });
 
+  it("writes only the payload when credentials are missing", async () => {
+    const assetsRoot = path.join(tempRoot, "assets");
+    const junitPath = path.join(tempRoot, "junit.xml");
+    fs.mkdirSync(path.join(assetsRoot, "PTP-123"), { recursive: true });
+    fs.writeFileSync(path.join(assetsRoot, "PTP-123", "evidence.txt"), "hello");
+    fs.writeFileSync(
+      junitPath,
+      [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        "<testsuites>",
+        '  <testsuite name="PTP-123">',
+        '    <testcase classname="PTP-123" name="STEP 1 - collects evidence"/>',
+        "  </testsuite>",
+        "</testsuites>",
+      ].join("\n")
+    );
+
+    process.env.ENABLE_XRAY_REPORT = "true";
+    delete process.env.XRAY_CLIENT_ID;
+    delete process.env.XRAY_CLIENT_SECRET;
+    process.env.TEST_REPORTER_STORAGE_PATH = assetsRoot;
+    process.env.JUNIT_PATH = junitPath;
+
+    await runJestXrayTeardown();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(console.warn).toHaveBeenCalledWith(
+      "⚠️ XRAY_CLIENT_ID and/or XRAY_CLIENT_SECRET are missing; skipping Xray synchronization."
+    );
+    expect(fs.existsSync(payloadPath)).toBe(true);
+    const payload = JSON.parse(fs.readFileSync(payloadPath, "utf8"));
+    expect(payload.tests).toHaveLength(1);
+    expect(payload.tests[0].testKey).toBe("PTP-123");
+    expect(payload.tests[0].evidence).toHaveLength(1);
+  });
+
   it("throws when the JUnit file is missing", async () => {
     process.env.ENABLE_XRAY_REPORT = "true";
     process.env.XRAY_CLIENT_ID = "client-id";

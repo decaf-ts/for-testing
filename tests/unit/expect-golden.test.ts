@@ -6,6 +6,10 @@ import {
   setReporter,
   type ExpectApi,
 } from "../../src";
+import {
+  FROZEN_GOLDEN_CASES,
+  type FrozenGoldenCase,
+} from "./fixtures/expect-golden-84bd171";
 
 interface GoldenCase {
   name: string;
@@ -275,6 +279,32 @@ function installFacade(): ExpectApi {
   return facade;
 }
 
+const ALL_CASES: GoldenCase[] = [...GOLDEN_CASES, ...NOT_CASES];
+
+const FROZEN_BY_NAME = new Map(
+  FROZEN_GOLDEN_CASES.map((entry) => [entry.name, entry])
+);
+
+function snapshot(instance: {
+  getReport(): string;
+  getErrors(): string[];
+  getStatus(): "Passed" | "Failed";
+}): Omit<FrozenGoldenCase, "name"> {
+  return {
+    report: instance.getReport(),
+    errors: instance.getErrors(),
+    status: instance.getStatus(),
+  };
+}
+
+function withoutName(entry: FrozenGoldenCase): Omit<FrozenGoldenCase, "name"> {
+  return {
+    report: entry.report,
+    errors: entry.errors,
+    status: entry.status,
+  };
+}
+
 describe("legacy ReportExpect / expect chain golden messages", () => {
   const originalReporter = getReporter();
 
@@ -286,33 +316,30 @@ describe("legacy ReportExpect / expect chain golden messages", () => {
     expect(GOLDEN_CASES).toHaveLength(24);
   });
 
-  it.each(GOLDEN_CASES.map((golden) => [golden.name, golden] as const))(
-    "%s produces byte-identical report, errors and status",
-    (_name, golden) => {
-      const legacy = new ReportExpect();
-      golden.legacy(legacy);
-
-      installFacade();
-      golden.chain(reportedExpect);
-
-      expect(reportedExpect.getReport()).toBe(legacy.getReport());
-      expect(reportedExpect.getErrors()).toEqual(legacy.getErrors());
-      expect(reportedExpect.getStatus()).toBe(legacy.getStatus());
+  it("covers every frozen golden case exactly once", () => {
+    expect(ALL_CASES).toHaveLength(FROZEN_GOLDEN_CASES.length);
+    expect(new Set(ALL_CASES.map((entry) => entry.name)).size).toBe(
+      FROZEN_GOLDEN_CASES.length
+    );
+    for (const entry of ALL_CASES) {
+      expect(FROZEN_BY_NAME.has(entry.name)).toBe(true);
     }
-  );
+  });
 
-  it.each(NOT_CASES.map((golden) => [golden.name, golden] as const))(
-    "%s produces byte-identical report, errors and status",
+  it.each(ALL_CASES.map((golden) => [golden.name, golden] as const))(
+    "%s matches the frozen 84bd171 literal messages",
     (_name, golden) => {
+      const frozen = FROZEN_BY_NAME.get(golden.name);
+      expect(frozen).toBeDefined();
+
       const legacy = new ReportExpect();
       golden.legacy(legacy);
 
       installFacade();
       golden.chain(reportedExpect);
 
-      expect(reportedExpect.getReport()).toBe(legacy.getReport());
-      expect(reportedExpect.getErrors()).toEqual(legacy.getErrors());
-      expect(reportedExpect.getStatus()).toBe(legacy.getStatus());
+      expect(snapshot(legacy)).toEqual(withoutName(frozen!));
+      expect(snapshot(reportedExpect)).toEqual(withoutName(frozen!));
     }
   );
 });

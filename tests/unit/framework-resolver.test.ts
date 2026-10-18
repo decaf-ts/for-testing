@@ -11,6 +11,8 @@ jest.mock("@jest/globals", () => ({}));
 const FRAMEWORK_ENV_KEY = "DECAF_TEST_FRAMEWORK";
 const SNIFF_KEYS = [
   "JEST_WORKER_ID",
+  "TEST_WORKER_INDEX",
+  "TEST_PARALLEL_INDEX",
   "VITEST",
   "VITEST_WORKSPACE_ID",
   "VITEST_MODE",
@@ -79,6 +81,12 @@ describe("framework adapter resolver", () => {
     globalScope.expect = globalScope.expect ?? fakeTestFn();
   }
 
+  function installPlaywrightShapedGlobals(): void {
+    delete globalScope.it;
+    globalScope.test = fakeTestFn();
+    globalScope.expect = globalScope.expect ?? fakeTestFn();
+  }
+
   it("uses the explicit configure({ framework }) selection over env and sniffing", () => {
     installFakeGlobals();
     process.env[FRAMEWORK_ENV_KEY] = "jest";
@@ -109,11 +117,22 @@ describe("framework adapter resolver", () => {
     );
   });
 
+  it("resolves playwright, never jest, from Playwright-shaped globals without markers (SAA-969 repro)", () => {
+    installPlaywrightShapedGlobals();
+    process.env = { ...originalEnv };
+    clearSniffEnv();
+
+    expect(resolveAdapterSync().kind).toBe("playwright");
+    expect(getAdapter().kind).toBe("playwright");
+  });
+
   it.each([
     ["JEST_WORKER_ID", "jest"],
     ["VITEST", "vitest"],
     ["VITEST_WORKSPACE_ID", "vitest"],
     ["VITEST_MODE", "vitest"],
+    ["TEST_WORKER_INDEX", "playwright"],
+    ["TEST_PARALLEL_INDEX", "playwright"],
     ["PLAYWRIGHT_TEST", "playwright"],
     ["PLAYWRIGHT_TEST_BASE_URL", "playwright"],
     ["PLAYWRIGHT_BROWSERS_PATH", "playwright"],

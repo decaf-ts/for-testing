@@ -54,8 +54,8 @@ export async function waitForConfiguredSleep() {
  * {@link ReportExpect} chain surfaces as a test failure with the full
  * report attached
  * @param {TestReporter} reporter the reporter to write through
- * @param {object} report the chain report exposing
- * `getStatus`, `getReport` and `checkHasError`
+ * @param {object} report the chain report exposing `getStatus`, `getReport`,
+ * `checkHasError` and an optional `reset`
  * @param {any} response the raw response to include in the report object
  * @param {Record<string, any>} [reportKeyValuePairs] extra key/value pairs
  * merged into the report object
@@ -65,30 +65,43 @@ export async function waitForConfiguredSleep() {
  */
 export async function reportObjects(
   reporter: TestReporter,
-  report: { getStatus(): "Passed" | "Failed"; getReport(): string; checkHasError(): boolean },
+  report: {
+    getStatus(): "Passed" | "Failed";
+    getReport(): string;
+    checkHasError(): boolean;
+    reset?(): void;
+  },
   response: any,
   reportKeyValuePairs?: Record<string, any>
 ) {
-  await reporter.reportObject("response", {
-    status: report?.getStatus(),
-    report: report?.getReport(),
-  });
+  const status = report?.getStatus();
+  const renderedReport = report?.getReport();
+  const hasError = report.checkHasError();
 
-  const reportObject: Record<string, any> = {
-    status: response?.status,
-    report: report?.getReport(),
-    response: response?.data,
-  };
-
-  if (reportKeyValuePairs) {
-    Object.keys(reportKeyValuePairs).forEach((pair) => {
-      reportObject[pair] = reportKeyValuePairs[pair];
+  try {
+    await reporter.reportObject("response", {
+      status,
+      report: renderedReport,
     });
+
+    const reportObject: Record<string, any> = {
+      status: response?.status,
+      report: renderedReport,
+      response: response?.data,
+    };
+
+    if (reportKeyValuePairs) {
+      Object.keys(reportKeyValuePairs).forEach((pair) => {
+        reportObject[pair] = reportKeyValuePairs[pair];
+      });
+    }
+
+    await reporter.reportObject("report", reportObject);
+  } finally {
+    report.reset?.();
   }
 
-  await reporter.reportObject("report", reportObject);
-
-  if (report.checkHasError()) {
+  if (hasError) {
     throw new Error("One or more assertions failed. See the report for details.");
   }
 }

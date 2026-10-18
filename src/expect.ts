@@ -113,10 +113,37 @@ class Chain<Actual> implements ExpectationChain<Actual> {
 }
 
 /**
+ * @description Accumulators scoped to a reporter instance
+ * @summary Keeping the accumulator off the reporter (instead of recreating it
+ * per facade) lets every `createExpect(reporter)` call observe the same
+ * scenario state, and lets `reportObjects` reset that state in place.
+ * @constant reporterCores
+ */
+const reporterCores = new WeakMap<TestReporter, ExpectationCore>();
+
+/**
+ * @description Resolves the accumulator backing a facade
+ * @summary Omitting the reporter yields a fresh standalone accumulator; passing
+ * one reuses the accumulator already associated with that reporter instance
+ * @param {TestReporter} [reporter] the reporter to scope the accumulator to
+ * @return {ExpectationCore} the resolved accumulator
+ */
+function coreFor(reporter?: TestReporter): ExpectationCore {
+  if (!reporter) return new ExpectationCore();
+  let core = reporterCores.get(reporter);
+  if (!core) {
+    core = new ExpectationCore();
+    reporterCores.set(reporter, core);
+  }
+  return core;
+}
+
+/**
  * @description Creates an isolated expectation facade with its own
  * accumulator
  * @summary Pass a reporter to scope the accumulator to one scenario, or omit
- * it to create a standalone accumulation target. The returned
+ * it to create a standalone accumulation target. Facades created for the same
+ * reporter share one accumulator, matching `reporter.expect`. The returned
  * {@link ExpectApi} never aborts the test; call `reportObjects` to persist
  * the accumulated report.
  * @param {TestReporter} [reporter] the reporter whose accumulator backs the
@@ -125,8 +152,7 @@ class Chain<Actual> implements ExpectationChain<Actual> {
  * @memberOf module:for-testing
  */
 export function createExpect(reporter?: TestReporter): ExpectApi {
-  void reporter;
-  const core = new ExpectationCore();
+  const core = coreFor(reporter);
   const api = (<Actual,>(actual: Actual) =>
     new Chain(core, actual)) as unknown as ExpectApi;
   api.getStatus = () => core.getStatus();

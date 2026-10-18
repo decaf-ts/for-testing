@@ -53,6 +53,7 @@ describe("shared jest helpers", () => {
 
     report.assertToBe(1, 2, "value");
 
+    const renderedReport = report.getReport();
     await expect(
       reportObjects(reporter, report, { status: 500, data: { foo: "bar" } }, {
         extra: 123,
@@ -62,14 +63,20 @@ describe("shared jest helpers", () => {
     expect(reporter.reportObject).toHaveBeenCalledTimes(2);
     expect(reporter.reportObject).toHaveBeenNthCalledWith(1, "response", {
       status: "Failed",
-      report: report.getReport(),
+      report: renderedReport,
     });
     expect(reporter.reportObject).toHaveBeenNthCalledWith(2, "report", {
       status: 500,
-      report: report.getReport(),
+      report: renderedReport,
       response: { foo: "bar" },
       extra: 123,
     });
+    expect(renderedReport).toContain(
+      "Expected value to be 1 and received 2"
+    );
+    expect(report.getReport()).toBe("");
+    expect(report.checkHasError()).toBe(false);
+    expect(report.getErrors()).toEqual([]);
   });
 
   it("waits only when SLEEP is configured", async () => {

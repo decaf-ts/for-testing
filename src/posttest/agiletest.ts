@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import { InternalError } from "@decaf-ts/db-decorators";
-import type { ProviderUploader } from "./core";
+import { boundResponseBody, type ProviderUploader } from "./core";
 
 /**
  * @description Default AgileTest REST base path
@@ -106,7 +106,7 @@ export async function pushPayloadToAgileTest(
   const responseText = await response.text();
   if (!response.ok) {
     throw new InternalError(
-      `Failed to upload results to AgileTest (${response.status}): ${responseText}`
+      `Failed to upload results to AgileTest (${response.status}): ${boundResponseBody(responseText)}`
     );
   }
   console.log(

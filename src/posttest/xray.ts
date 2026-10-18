@@ -3,7 +3,7 @@ import {
   findExistingAssociatedPrecondition,
   type ParsedTestCase,
 } from "../testImporter";
-import type { ProviderUploader } from "./core";
+import { boundResponseBody, type ProviderUploader } from "./core";
 
 /**
  * @description Xray Cloud REST endpoints used by the uploader
@@ -74,7 +74,7 @@ export async function fetchXrayToken(
   const text = await response.text();
   if (!response.ok) {
     throw new Error(
-      `Failed to authenticate with Xray (${response.status}): ${text}`
+      `Failed to authenticate with Xray (${response.status}): ${boundResponseBody(text)}`
     );
   }
 
@@ -123,7 +123,7 @@ export async function pushPayloadToXray(
   const responseText = await response.text();
   if (!response.ok) {
     throw new Error(
-      `Failed to upload results to Xray (${response.status}): ${responseText}`
+      `Failed to upload results to Xray (${response.status}): ${boundResponseBody(responseText)}`
     );
   }
   console.log(
@@ -161,12 +161,16 @@ export async function runXrayGraphql(
 
   const body = await response.text();
   if (!response.ok) {
-    throw new Error(`Failed to call Xray GraphQL (${response.status}): ${body}`);
+    throw new Error(
+      `Failed to call Xray GraphQL (${response.status}): ${boundResponseBody(body)}`
+    );
   }
 
   const parsed = body ? JSON.parse(body) : {};
   if (Array.isArray(parsed.errors) && parsed.errors.length) {
-    throw new Error(`Xray GraphQL error: ${JSON.stringify(parsed.errors)}`);
+    throw new Error(
+      `Xray GraphQL error: ${boundResponseBody(JSON.stringify(parsed.errors))}`
+    );
   }
 
   return parsed.data || null;

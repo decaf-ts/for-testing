@@ -7,6 +7,14 @@ import { pathToFileURL } from "node:url";
 const testingRoot = path.resolve(__dirname, "../..");
 const libEsm = path.join(testingRoot, "lib", "esm");
 
+// This suite spawns the compiled ESM entrypoints (cli-module.js and the two
+// teardown modules), which are gitignored and only exist after `npm run build`.
+// Guard the suite so a clean checkout can still run `npm test`; build first to
+// exercise it. (The source-level behaviour of the same code paths is covered by
+// the in-process teardown tests.)
+const libBuilt = fs.existsSync(path.join(libEsm, "cli-module.js"));
+const describeWhenBuilt = libBuilt ? describe : describe.skip;
+
 interface PosttestFixture {
   root: string;
   junitPath: string;
@@ -136,7 +144,7 @@ function readCalls(file: string): FetchCall[] {
   return JSON.parse(fs.readFileSync(file, "utf8")) as FetchCall[];
 }
 
-describe("post-test core and decaf test report CLI parity", () => {
+describeWhenBuilt("post-test core and decaf test report CLI parity", () => {
   let tempRoot: string;
   let fixture: PosttestFixture;
 

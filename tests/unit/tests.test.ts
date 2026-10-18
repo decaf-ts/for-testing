@@ -24,6 +24,15 @@ jest.mock(
 );
 
 jest.mock(
+  "jest-html-reporters/helper.js",
+  () => ({
+    addMsg: jest.fn().mockResolvedValue(undefined),
+    addAttach: jest.fn().mockResolvedValue(undefined),
+  }),
+  { virtual: true }
+);
+
+jest.mock(
   "json2md",
   () => jest.fn().mockImplementation(() => "mocked-markdown"),
   { virtual: true }

@@ -299,7 +299,7 @@ export class TestReporter {
     this.deps = await installIfNotAvailable([dependencies[0]], this.deps);
     // if (!process.env[JestReportersTempPathEnvKey])
     //   process.env[JestReportersTempPathEnvKey] = './workdocs/reports';
-    const helper = await normalizeImport(import(`${dependencies[0]}/helper`));
+    const helper = await this.importHelper();
     const { addMsg, addAttach } = helper as {
       addMsg: typeof TestReporter.addMsgFunction;
       addAttach: typeof TestReporter.addAttachFunction;
@@ -310,6 +310,24 @@ export class TestReporter {
     this.overrideJestHtmlReportersTempPaths(helper as Record<string, unknown>);
     TestReporter.addMsgFunction = addMsg;
     TestReporter.addAttachFunction = addAttach;
+  }
+
+  /**
+   * @description Loads the jest-html-reporters helper module
+   * @summary Tries the ESM-friendly `<package>/helper.js` specifier first and
+   * falls back to the bare `<package>/helper` specifier for dependency
+   * layouts that do not expose the `.js` entry
+   * @return {Promise<Record<string, unknown>>} the helper module namespace
+   */
+  private async importHelper(): Promise<Record<string, unknown>> {
+    const specifier = `${dependencies[0]}/helper`;
+    try {
+      return (await normalizeImport(
+        import(`${specifier}.js`)
+      )) as Record<string, unknown>;
+    } catch {
+      return (await normalizeImport(import(specifier))) as Record<string, unknown>;
+    }
   }
 
   private getJestHtmlReportersTempDir(): string {

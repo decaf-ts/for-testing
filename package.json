@@ -47,6 +47,11 @@
     "test": "npm run test:all",
     "test:unit": "jest --testPathPatterns=\"/tests/unit\" --passWithNoTests --detectOpenHandles",
     "test:integration": "jest --testPathPatterns=\"/tests/(integration)\" --passWithNoTests --detectOpenHandles",
+    "test:contract:jest": "jest --testPathPatterns=\"/tests/integration/framework-contract\" --passWithNoTests",
+    "test:contract:vitest": "vitest run --config vitest.config.ts",
+    "test:contract:playwright": "playwright test --config playwright.config.ts",
+    "test:contract:runners": "npm run test:contract:jest && npm run test:contract:vitest && npm run test:contract:playwright",
+    "test:runners": "npm run test:all && npm run test:contract:vitest && npm run test:contract:playwright",
     "test:all": "jest --testPathPatterns=\"/tests\" --passWithNoTests --detectOpenHandles",
     "test:dist": "TEST_TARGET=lib npm run test:all && TEST_TARGET=dist npm run test:all",
     "test:circular": "dpdm -T --no-warning --no-tree ./src/index.ts",
@@ -144,5 +149,9 @@
     "@playwright/test": {
       "optional": true
     }
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "vitest": "^3.2.7"
   }
 }

@@ -6,8 +6,26 @@ import {
 } from "@decaf-ts/utils";
 import type { CommandResult } from "@decaf-ts/utils";
 import { TestReporter } from "./TestReporter";
+import { resolveAdapterSync } from "./frameworks/resolver";
 import { sf } from "@decaf-ts/logging";
 import { style } from "styled-string-builder";
+
+/**
+ * @description Resolves the current test name through the framework adapter
+ * @summary Keeps the report label framework-agnostic: jest, vitest and
+ * Playwright each expose the current test through their own adapter instead
+ * of a global `expect.getState()`, which does not exist under vitest
+ * `globals: false` or Playwright.
+ * @return {string} the current test name, or `no test name` when the adapter
+ * cannot resolve one
+ */
+function currentTestName(): string {
+  try {
+    return resolveAdapterSync().currentTestName() || "no test name";
+  } catch {
+    return "no test name";
+  }
+}
 
 /**
  * @description Wraps {@link runCommand} so every command invocation is echoed
@@ -51,7 +69,7 @@ export function runAndReport<R = string>(
 
     const resolution = async (resolve: any, result: any) => {
       await reporter.reportData(
-        `${expect.getState().currentTestName || "no test name"} - ${command}`,
+        `${currentTestName()} - ${command}`,
         `${sf(commandPrefix, { cwd: opts.cwd || process.cwd() })}${command}\n${style("SUCCESS").green.bold}\n${result}`,
         "text",
         true
@@ -62,7 +80,7 @@ export function runAndReport<R = string>(
     const rejection = async (reject: any, error: any) => {
       try {
         await reporter.reportData(
-          `${expect.getState().currentTestName || "no test name"} - ${command}`,
+          `${currentTestName()} - ${command}`,
           `${sf(commandPrefix, { cwd: opts.cwd || process.cwd() })}${command}\n${style("FAIL").red.bold}\n${error}`,
           "text",
           true

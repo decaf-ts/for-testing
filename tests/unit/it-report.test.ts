@@ -216,56 +216,71 @@ describe("it.report jest adapter contract", () => {
     expect(adapter.run).not.toHaveBeenCalled();
   });
 
-  it("accumulates standalone expect calls on the reporter and persists them with reportObjects", async () => {
+  it("accumulates reporter-scoped expect calls and persists them with reportObjects", async () => {
     installAdapter();
-    const reporter = {
-      expect: createExpect(),
+    const reporter: any = {
       reportObject: jest.fn().mockResolvedValue(undefined),
     };
-    setReporter(reporter as never);
+    reporter.expect = createExpect(reporter);
+    setReporter(reporter);
 
     reportedExpect(2).referredToAs("value").to.be(2);
     reportedExpect({ a: 1 }).referredToAs("payload").to.equal({ a: 1 });
 
-    await reportObjects(reporter as never, reporter.expect, {
+    const renderedReport = reporter.expect.getReport();
+    await reportObjects(reporter, reporter.expect, {
       status: 200,
       data: { ok: true },
     });
 
-    expect(reporter.expect.getStatus()).toBe("Passed");
-    expect(reporter.expect.getReport()).toContain(
-      "Expected value to be 2 and received 2"
-    );
     expect(reporter.reportObject).toHaveBeenNthCalledWith(1, "response", {
       status: "Passed",
-      report: reporter.expect.getReport(),
+      report: renderedReport,
     });
     expect(reporter.reportObject).toHaveBeenNthCalledWith(2, "report", {
       status: 200,
-      report: reporter.expect.getReport(),
+      report: renderedReport,
       response: { ok: true },
     });
+    expect(renderedReport).toContain(
+      "Expected value to be 2 and received 2"
+    );
+    expect(reporter.expect.getStatus()).toBe("Passed");
+    expect(reporter.expect.getReport()).toBe("");
+    expect(reporter.expect.getErrors()).toEqual([]);
   });
 
-  it("fails reportObjects when the standalone expect accumulator has errors", async () => {
+  it("fails reportObjects when the reporter-scoped expect accumulator has errors", async () => {
     installAdapter();
-    const reporter = {
-      expect: createExpect(),
+    const reporter: any = {
       reportObject: jest.fn().mockResolvedValue(undefined),
     };
-    setReporter(reporter as never);
+    reporter.expect = createExpect(reporter);
+    setReporter(reporter);
 
     reportedExpect(2).referredToAs("value").to.be(3);
 
+    const renderedReport = reporter.expect.getReport();
     await expect(
-      reportObjects(reporter as never, reporter.expect, { status: 500 })
+      reportObjects(reporter, reporter.expect, { status: 500 })
     ).rejects.toThrow(
       "One or more assertions failed. See the report for details."
     );
 
-    expect(reporter.expect.getStatus()).toBe("Failed");
-    expect(reporter.expect.getErrors()).toEqual([
-      "Expected value to be 3 and received 2",
-    ]);
+    expect(reporter.reportObject).toHaveBeenNthCalledWith(1, "response", {
+      status: "Failed",
+      report: renderedReport,
+    });
+    expect(reporter.reportObject).toHaveBeenNthCalledWith(2, "report", {
+      status: 500,
+      report: renderedReport,
+      response: undefined,
+    });
+    expect(renderedReport).toContain(
+      "Expected value to be 3 and received 2"
+    );
+    expect(reporter.expect.getStatus()).toBe("Passed");
+    expect(reporter.expect.getErrors()).toEqual([]);
+    expect(reporter.expect.getReport()).toBe("");
   });
 });

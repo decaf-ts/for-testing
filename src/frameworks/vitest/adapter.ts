@@ -33,13 +33,27 @@ type FrameworkGlobals = {
 };
 
 /**
+ * @description Detects the vitest test environment
+ * @summary Vitest exposes `VITEST` (and related) markers inside its workers;
+ * requiring one keeps runners such as Playwright, which inject only
+ * `test`/`expect`, from being mistaken for vitest.
+ * @return {boolean} true when running inside a vitest worker
+ */
+function hasVitestEnvironment(): boolean {
+  if (typeof process === "undefined") return false;
+  const env = process.env;
+  return Boolean(env.VITEST || env.VITEST_WORKSPACE_ID || env.VITEST_MODE);
+}
+
+/**
  * @description Resolves vitest-injected `it`/`expect` globals
- * @summary Works when the vitest config enables `globals: true`
+ * @summary Works when the vitest config enables `globals: true`; only falls
+ * back to the generic `test` global inside a confirmed vitest worker
  * @return {FrameworkGlobals | undefined} the globals, or undefined
  */
 function resolveVitestGlobals(): FrameworkGlobals | undefined {
   const scope = globalThis as unknown as Record<string, AnyFn | undefined>;
-  const itFn = scope.it ?? scope.test;
+  const itFn = scope.it ?? (hasVitestEnvironment() ? scope.test : undefined);
   const expectFn = scope.expect;
   if (typeof itFn === "function" && typeof expectFn === "function") {
     return {
@@ -58,6 +72,7 @@ function resolveVitestGlobals(): FrameworkGlobals | undefined {
  */
 function loadVitestModule(): FrameworkGlobals | undefined {
   try {
+    if (!hasVitestEnvironment()) return undefined;
     if (typeof require !== "function") return undefined;
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const mod = require("vitest") as {
@@ -155,23 +170,25 @@ export function createVitestAdapter(): FrameworkAdapter {
  * @return {Promise<FrameworkAdapter>} the vitest adapter
  */
 export async function createVitestAdapterAsync(): Promise<FrameworkAdapter> {
-  try {
-    const vitestModule = "vitest";
-    const mod = (await import(vitestModule)) as unknown as {
-      it?: AnyFn;
-      test?: AnyFn;
-      expect?: AnyFn;
-    };
-    const itFn = mod?.it ?? mod?.test;
-    if (typeof itFn === "function" && typeof mod?.expect === "function") {
-      return buildVitestAdapter({
-        itFn,
-        expectFn: mod.expect,
-        each: itFn.each as JestEachSignature | undefined,
-      });
+  if (hasVitestEnvironment()) {
+    try {
+      const vitestModule = "vitest";
+      const mod = (await import(vitestModule)) as unknown as {
+        it?: AnyFn;
+        test?: AnyFn;
+        expect?: AnyFn;
+      };
+      const itFn = mod?.it ?? mod?.test;
+      if (typeof itFn === "function" && typeof mod?.expect === "function") {
+        return buildVitestAdapter({
+          itFn,
+          expectFn: mod.expect,
+          each: itFn.each as JestEachSignature | undefined,
+        });
+      }
+    } catch {
+      // Fall through to the sync resolver and its descriptive error.
     }
-  } catch {
-    // Fall through to the sync resolver and its descriptive error.
   }
   return createVitestAdapter();
 }

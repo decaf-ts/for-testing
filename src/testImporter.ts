@@ -68,6 +68,36 @@ const MIME_MAP: Record<string, string> = {
 };
 
 /**
+ * @description File extensions accepted as evidence attachments
+ * @summary Frozen list derived from the keys of {@link MIME_MAP}; any other
+ * extension is skipped with a warning by {@link collectEvidenceFromDir}
+ * @constant EVIDENCE_ALLOWED_EXTENSIONS
+ * @memberOf module:for-testing
+ */
+export const EVIDENCE_ALLOWED_EXTENSIONS: readonly string[] = Object.freeze(
+  Object.keys(MIME_MAP)
+);
+
+/**
+ * @description Maximum size (in bytes) a single evidence file may reach
+ * @summary Larger files are rejected by {@link createEvidenceFromFile} and
+ * skipped with a warning by {@link collectEvidenceFromDir}
+ * @constant EVIDENCE_MAX_FILE_BYTES
+ * @memberOf module:for-testing
+ */
+export const EVIDENCE_MAX_FILE_BYTES = 20 * 1024 * 1024;
+
+/**
+ * @description Maximum combined size (in bytes) of evidence collected in one
+ * run
+ * @summary Once the cap is reached, {@link collectEvidenceFromDir} skips any
+ * further files and warns once
+ * @constant EVIDENCE_MAX_TOTAL_BYTES
+ * @memberOf module:for-testing
+ */
+export const EVIDENCE_MAX_TOTAL_BYTES = 100 * 1024 * 1024;
+
+/**
  * @description Default directory scanned for per-test evidence artifacts
  * @summary Evidence root used when neither `ASSETS__PATH` nor
  * `TEST_REPORTER_STORAGE_PATH` is set
@@ -104,19 +134,6 @@ export const SHORTEN_MAX = 4000;
  * @memberOf module:for-testing
  */
 export const RESPONSE_FILENAME = "response.json";
-
-/**
- * @description Minimal parser contract expected from `fast-xml-parser`
- * @summary Structural type of the XML parser loaded lazily by
- * {@link loadXmlParser}
- * @typedef {Object} XmlParser
- * @property {function(string): unknown} parse parses an XML string into a
- * plain object
- * @memberOf module:for-testing
- */
-export type XmlParser = {
-  parse(xml: string): unknown;
-};
 
 /**
  * @description A single base64-encoded evidence file ready for upload
@@ -416,15 +433,23 @@ export const extractExecutionItem = (value: unknown): ExecutionItem => {
 /**
  * @description Reads a file into a base64 evidence attachment
  * @summary Builds an {@link EvidenceAttachment} from a file path, deriving
- * the content type from the extension via {@link MIME_MAP}
+ * the content type from the extension via {@link MIME_MAP}. Files larger
+ * than {@link EVIDENCE_MAX_FILE_BYTES} are rejected
  * @param {string} filePath the file to attach
  * @return {EvidenceAttachment} the attachment (without `contentType` when
  * the extension is unknown)
+ * @throws {Error} when the file exceeds {@link EVIDENCE_MAX_FILE_BYTES}
  * @memberOf module:for-testing
  */
 export const createEvidenceFromFile = (
   filePath: string
 ): EvidenceAttachment => {
+  const { size } = fs.statSync(filePath);
+  if (size > EVIDENCE_MAX_FILE_BYTES) {
+    throw new Error(
+      `Evidence file ${filePath} is ${size} bytes, exceeding the ${EVIDENCE_MAX_FILE_BYTES}-byte per-file limit.`
+    );
+  }
   const buffer = fs.readFileSync(filePath);
   const ext = path.extname(filePath).toLowerCase();
   const contentType = MIME_MAP[ext];
@@ -444,15 +469,22 @@ export const createEvidenceFromFile = (
  * @param {boolean} [options.skipStepDirs] skip directories whose name
  * matches {@link STEP_KEY_PATTERN}
  * @param {string[]} [options.excludeFileNames] file names to skip
+ * @param {boolean} [options.skipDotEntries] skip dot-prefixed files and
+ * directories
  * @return {string[]} the collected file paths
  * @memberOf module:for-testing
  */
 export const collectFiles = (
   directory: string,
-  options?: { skipStepDirs?: boolean; excludeFileNames?: string[] }
+  options?: {
+    skipStepDirs?: boolean;
+    excludeFileNames?: string[];
+    skipDotEntries?: boolean;
+  }
 ): string[] => {
   const files: string[] = [];
   for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    if (options?.skipDotEntries && entry.name.startsWith(".")) continue;
     const entryPath = path.join(directory, entry.name);
     if (entry.isDirectory()) {
       if (options?.skipStepDirs && STEP_KEY_PATTERN.test(entry.name)) continue;
@@ -469,11 +501,57 @@ export const collectFiles = (
 };
 
 /**
- * @description Collects every file under a directory as evidence
- * attachments
+ * @description Warns about every dotfile nested under a directory
+ * @summary Depth-first walk emitting one warning per file found below a
+ * skipped dot-directory
+ * @param {string} directory the skipped dot-directory
+ */
+const warnSkippedDotContents = (directory: string): void => {
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const entryPath = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      warnSkippedDotContents(entryPath);
+      continue;
+    }
+    if (entry.isFile()) {
+      console.warn(`⚠️ Skipping dotfile evidence ${entryPath}.`);
+    }
+  }
+};
+
+/**
+ * @description Warns about dot-prefixed entries excluded from evidence
+ * collection
+ * @summary Depth-first walk emitting one warning per dotfile and, for
+ * dot-directories, one warning plus the nested contents via
+ * {@link warnSkippedDotContents}
+ * @param {string} directory the evidence root to inspect
+ */
+const warnSkippedDotEntries = (directory: string): void => {
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const entryPath = path.join(directory, entry.name);
+    if (entry.name.startsWith(".")) {
+      if (entry.isDirectory()) {
+        console.warn(`⚠️ Skipping dot-directory evidence ${entryPath}.`);
+        warnSkippedDotContents(entryPath);
+      } else if (entry.isFile()) {
+        console.warn(`⚠️ Skipping dotfile evidence ${entryPath}.`);
+      }
+      continue;
+    }
+    if (entry.isDirectory()) warnSkippedDotEntries(entryPath);
+  }
+};
+
+/**
+ * @description Collects a directory's contents into evidence attachments
  * @summary Returns an empty array when the path is missing or not a
- * directory; otherwise maps {@link collectFiles} results through
- * {@link createEvidenceFromFile}
+ * directory. Collection is hardened before upload: dot-prefixed entries are
+ * excluded (with a warning via {@link warnSkippedDotEntries}), only
+ * extensions in {@link EVIDENCE_ALLOWED_EXTENSIONS} are accepted, and files
+ * beyond {@link EVIDENCE_MAX_FILE_BYTES} or pushing the run past
+ * {@link EVIDENCE_MAX_TOTAL_BYTES} are skipped with a warning instead of
+ * aborting the teardown
  * @param {string} dirPath the evidence directory
  * @param {object} [options] options forwarded to {@link collectFiles}
  * @param {boolean} [options.skipStepDirs] skip step-keyed directories
@@ -486,7 +564,71 @@ export const collectEvidenceFromDir = (
   options?: { skipStepDirs?: boolean; excludeFileNames?: string[] }
 ): EvidenceAttachment[] => {
   if (!fs.existsSync(dirPath) || !fs.statSync(dirPath).isDirectory()) return [];
-  return collectFiles(dirPath, options).map(createEvidenceFromFile);
+
+  warnSkippedDotEntries(dirPath);
+
+  const allowed = new Set(EVIDENCE_ALLOWED_EXTENSIONS);
+  const candidates = collectFiles(dirPath, {
+    ...options,
+    skipDotEntries: true,
+  });
+  const evidence: EvidenceAttachment[] = [];
+  let totalBytes = 0;
+  let totalCapWarned = false;
+
+  for (const filePath of candidates) {
+    const fileName = path.basename(filePath);
+    if (fileName.startsWith(".")) {
+      console.warn(`⚠️ Skipping dotfile evidence ${filePath}.`);
+      continue;
+    }
+
+    const extension = path.extname(fileName).toLowerCase();
+    if (!allowed.has(extension)) {
+      console.warn(
+        `⚠️ Skipping evidence ${filePath}: extension "${extension || "(none)"}" is not allowlisted.`
+      );
+      continue;
+    }
+
+    let size: number;
+    try {
+      size = fs.statSync(filePath).size;
+    } catch (error: unknown) {
+      console.warn(
+        `⚠️ Skipping evidence ${filePath}: ${error instanceof Error ? error.message : String(error)}`
+      );
+      continue;
+    }
+
+    if (size > EVIDENCE_MAX_FILE_BYTES) {
+      console.warn(
+        `⚠️ Skipping evidence ${filePath}: ${size} bytes exceeds the ${EVIDENCE_MAX_FILE_BYTES}-byte per-file limit.`
+      );
+      continue;
+    }
+
+    if (totalBytes + size > EVIDENCE_MAX_TOTAL_BYTES) {
+      if (!totalCapWarned) {
+        console.warn(
+          `⚠️ Skipping further evidence: the ${EVIDENCE_MAX_TOTAL_BYTES}-byte per-run limit was reached.`
+        );
+        totalCapWarned = true;
+      }
+      continue;
+    }
+
+    try {
+      evidence.push(createEvidenceFromFile(filePath));
+      totalBytes += size;
+    } catch (error: unknown) {
+      console.warn(
+        `⚠️ Skipping evidence ${filePath}: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  return evidence;
 };
 
 /**
@@ -602,36 +744,9 @@ export const findExistingAssociatedPrecondition = (
 };
 
 /**
- * @description Loads `fast-xml-parser` lazily, when available
- * @summary Returns a configured XML parser or null when the dependency is
- * not installed, letting callers fall back to
- * {@link parseFallbackJunit}
- * @return {Promise<XmlParser | null>} the parser, or null when unavailable
- * @memberOf module:for-testing
- */
-export const loadXmlParser = async (): Promise<XmlParser | null> => {
-  try {
-    const moduleName = "fast-xml-parser";
-    const mod = await import(moduleName);
-    const Parser = (mod as { XMLParser?: new (options: unknown) => XmlParser })
-      .XMLParser;
-    if (!Parser) return null;
-    return new Parser({
-      ignoreAttributes: false,
-      attributeNamePrefix: "@_",
-      textNodeName: "#text",
-      trimValues: true,
-    });
-  } catch {
-    return null;
-  }
-};
-
-/**
  * @description Extracts XML attributes from a tag's raw attribute string
  * @summary Parses `name="value"` pairs into a record keyed by `@_<name>`,
- * mirroring the `fast-xml-parser` attribute prefix used by the main parse
- * path
+ * matching the attribute keys used by the JUnit parse path
  * @param {string} input the raw attribute text of an XML tag
  * @return {Record<string, string>} the parsed attributes
  * @memberOf module:for-testing
@@ -651,28 +766,41 @@ export const extractAttributes = (
 /**
  * @description Extracts the inner text of an XML tag from a block
  * @summary Matches the first `<tag ...>text</tag>` occurrence and strips
- * CDATA wrappers
+ * CDATA wrappers. Self-closing tags (e.g. `<failure .../>`) have no inner
+ * text, so their `message` or `type` attribute is returned instead (empty
+ * string when neither is present)
  * @param {string} block the XML fragment to search
  * @param {string} tagName the tag whose text is extracted
- * @return {string | undefined} the trimmed text, or undefined when the tag
- * is absent
+ * @return {string | undefined} the trimmed text, the fallback attribute
+ * value, or undefined when the tag is absent
  * @memberOf module:for-testing
  */
 export const extractTagText = (
   block: string,
   tagName: string
 ): string | undefined => {
-  const match = block.match(new RegExp(`<${tagName}\\b[^>]*>([\\s\\S]*?)<\\/${tagName}>`, "i"));
-  if (!match) return undefined;
-  return match[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").trim();
+  const match = block.match(
+    new RegExp(`<${tagName}\\b[^>]*>([\\s\\S]*?)<\\/${tagName}>`, "i")
+  );
+  if (match) {
+    return match[1].replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").trim();
+  }
+
+  const selfClosing = block.match(
+    new RegExp(`<${tagName}\\b([^>]*?)\\/>`, "i")
+  );
+  if (!selfClosing) return undefined;
+  const attributes = extractAttributes(selfClosing[1] || "");
+  return attributes["@_message"] ?? attributes["@_type"] ?? "";
 };
 
 /**
- * @description Regex-based JUnit XML parser used when
- * `fast-xml-parser` is not installed
- * @summary Fallback parser producing the same `{ testsuite: [...] }` shape
- * as the real parser, including test-case attributes and
- * `failure`/`error`/`skipped` children
+ * @description Regex-based JUnit XML parser
+ * @summary Parser producing the `{ testsuite: [...] }` shape consumed by
+ * {@link parseJunitFile}, including test-case attributes and
+ * `failure`/`error`/`skipped` children. The module deliberately has no XML
+ * parser dependency, so this self-contained implementation is the only parse
+ * path.
  * @param {string} xml the JUnit XML document
  * @return {unknown} the parsed structure, or `{}` when no suites matched
  * @memberOf module:for-testing
@@ -686,13 +814,24 @@ export const parseFallbackJunit = (xml: string): unknown => {
     const suiteAttrs = extractAttributes(suiteMatch[1] || "");
     const suiteBody = suiteMatch[2] || "";
     const testcases: Array<Record<string, unknown>> = [];
-    const testcasePattern = /<testcase\b([^>]*)>([\s\S]*?)<\/testcase>|<testcase\b([^>]*)\/>/gi;
+    const testcasePattern = /<testcase\b([^>]*?)(\/?)>/gi;
+    const closingTag = "</testcase>";
     let testcaseMatch: RegExpExecArray | null;
 
     while ((testcaseMatch = testcasePattern.exec(suiteBody))) {
-      const attrSource = testcaseMatch[1] || testcaseMatch[3] || "";
+      const attrSource = testcaseMatch[1] || "";
       const testcaseAttrs = extractAttributes(attrSource);
-      const body = testcaseMatch[2] || "";
+      const selfClosing = testcaseMatch[2] === "/";
+      let body = "";
+      if (!selfClosing) {
+        const closeAt = suiteBody
+          .toLowerCase()
+          .indexOf(closingTag, testcasePattern.lastIndex);
+        if (closeAt !== -1) {
+          body = suiteBody.slice(testcasePattern.lastIndex, closeAt);
+          testcasePattern.lastIndex = closeAt + closingTag.length;
+        }
+      }
       const testcase: Record<string, unknown> = {
         ...testcaseAttrs,
       };
@@ -744,8 +883,7 @@ export const parseJunitFile = async (
   buckets: Map<string, EvidenceBucket>
 ): Promise<ParsedTestCase[]> => {
   const xml = fs.readFileSync(junitPath, "utf8");
-  const parser = await loadXmlParser();
-  const parsed = parser ? parser.parse(xml) : parseFallbackJunit(xml);
+  const parsed = parseFallbackJunit(xml);
   const parsedRecord = parsed as {
     testsuite?: unknown;
     testsuites?: { testsuite?: unknown };
@@ -919,9 +1057,9 @@ export const parseJunitFile = async (
  * @description Builds the evidence catalog for an evidence root directory
  * @summary Walks the evidence tree, groups attachments by test key and
  * execution item (step/precondition), and records per-item and direct
- * response details. Directories named `jest-html-reporters-temp` are
- * ignored; a missing or non-directory root yields an empty catalog with a
- * warning
+ * response details. Dot-prefixed directories and directories named
+ * `jest-html-reporters-temp` are ignored; a missing or non-directory root
+ * yields an empty catalog with a warning
  * @param {string} assetsRoot the evidence root (default
  * {@link DEFAULT_ASSETS_PATH})
  * @return {Map<string, EvidenceBucket>} evidence buckets by test key
@@ -951,6 +1089,7 @@ export const buildAssetBuckets = (
       if (!entry.isDirectory()) continue;
 
       const entryName = entry.name;
+      if (entryName.startsWith(".")) continue;
       if (entryName === "jest-html-reporters-temp") continue;
 
       const entryPath = path.join(directoryPath, entryName);

@@ -58,7 +58,8 @@ function isFrameworkKind(value: string | undefined): value is FrameworkKind {
 /**
  * @description Detects the running test framework from well-known env vars
  * @summary Recognizes jest (`JEST_WORKER_ID`), vitest (`VITEST*`) and
- * Playwright (`PLAYWRIGHT_*`) runners
+ * Playwright (`TEST_WORKER_INDEX`, `TEST_PARALLEL_INDEX`, `PLAYWRIGHT_*`)
+ * runners. Playwright workers only set the `TEST_*` markers by default.
  * @return {FrameworkKind | undefined} the sniffed framework, or undefined
  */
 function sniffFramework(): FrameworkKind | undefined {
@@ -67,6 +68,8 @@ function sniffFramework(): FrameworkKind | undefined {
   if (env.VITEST || env.VITEST_WORKSPACE_ID || env.VITEST_MODE)
     return "vitest";
   if (
+    env.TEST_WORKER_INDEX !== undefined ||
+    env.TEST_PARALLEL_INDEX !== undefined ||
     env.PLAYWRIGHT_TEST ||
     env.PLAYWRIGHT_TEST_BASE_URL ||
     env.PLAYWRIGHT_BROWSERS_PATH

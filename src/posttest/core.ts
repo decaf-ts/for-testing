@@ -42,6 +42,35 @@ export const DEFAULT_OUTPUT_PATHS: Record<PosttestTarget, string> = {
 };
 
 /**
+ * @description Maximum number of characters of a provider response body that
+ * is echoed into an error message
+ * @constant PROVIDER_RESPONSE_MAX
+ * @type {number}
+ * @memberOf module:for-testing
+ */
+export const PROVIDER_RESPONSE_MAX = 2000;
+
+/**
+ * @description Bounds a provider-controlled response body before it is
+ * embedded in an error message
+ * @summary Provider errors can echo arbitrarily large (or hostile) bodies into
+ * CLI output and logs. The body is trimmed and truncated to
+ * {@link PROVIDER_RESPONSE_MAX}, with the discarded length reported.
+ * @param {string} body the response body
+ * @param {number} [max=PROVIDER_RESPONSE_MAX] the maximum retained length
+ * @return {string} the bounded body
+ * @memberOf module:for-testing
+ */
+export function boundResponseBody(
+  body: string,
+  max: number = PROVIDER_RESPONSE_MAX
+): string {
+  const text = typeof body === "string" ? body.trim() : String(body ?? "");
+  if (text.length <= max) return text;
+  return `${text.slice(0, max)}… [truncated ${text.length - max} characters]`;
+}
+
+/**
  * @interface PosttestOptions
  * @description Options for the shared post-test engine
  * @summary Every knob falls back to its environment variable, then to the

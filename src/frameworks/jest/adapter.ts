@@ -38,13 +38,27 @@ function globalScope(): Record<string, AnyFn | undefined> {
 }
 
 /**
+ * @description Detects the jest test environment
+ * @summary Jest always exposes `JEST_WORKER_ID` inside test modules. Requiring
+ * that marker keeps other runners which also inject `test`/`expect` globals
+ * (notably Playwright) from being mistaken for jest.
+ * @return {boolean} true when running inside a jest worker
+ */
+function hasJestEnvironment(): boolean {
+  if (typeof process === "undefined") return false;
+  const workerId = process.env.JEST_WORKER_ID;
+  return workerId !== undefined && workerId !== "";
+}
+
+/**
  * @description Resolves jest-injected `it`/`expect` globals
- * @summary Works when jest injects its globals into the module scope
+ * @summary Works when jest injects its globals into the module scope; only
+ * falls back to the generic `test` global inside a confirmed jest worker
  * @return {FrameworkGlobals | undefined} the globals, or undefined
  */
 function resolveJestGlobals(): FrameworkGlobals | undefined {
   const scope = globalScope();
-  const itFn = scope.it ?? scope.test;
+  const itFn = scope.it ?? (hasJestEnvironment() ? scope.test : undefined);
   const expectFn = scope.expect;
   if (typeof itFn === "function" && typeof expectFn === "function") {
     return { itFn, expectFn };
@@ -60,6 +74,7 @@ function resolveJestGlobals(): FrameworkGlobals | undefined {
  */
 function loadJestGlobalsModule(): FrameworkGlobals | undefined {
   try {
+    if (!hasJestEnvironment()) return undefined;
     if (typeof require !== "function") return undefined;
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const mod = require("@jest/globals") as {
@@ -206,17 +221,19 @@ export function createJestAdapter(): FrameworkAdapter {
  * @return {Promise<FrameworkAdapter>} the jest adapter
  */
 export async function createJestAdapterAsync(): Promise<FrameworkAdapter> {
-  try {
-    const jestGlobalsModule = "@jest/globals";
-    const mod = (await import(jestGlobalsModule)) as unknown as {
-      it?: AnyFn;
-      expect?: AnyFn;
-    };
-    if (typeof mod?.it === "function" && typeof mod?.expect === "function") {
-      return buildJestAdapter(mod.it, mod.expect);
+  if (hasJestEnvironment()) {
+    try {
+      const jestGlobalsModule = "@jest/globals";
+      const mod = (await import(jestGlobalsModule)) as unknown as {
+        it?: AnyFn;
+        expect?: AnyFn;
+      };
+      if (typeof mod?.it === "function" && typeof mod?.expect === "function") {
+        return buildJestAdapter(mod.it, mod.expect);
+      }
+    } catch {
+      // Fall through to the sync resolver and its descriptive error.
     }
-  } catch {
-    // Fall through to the sync resolver and its descriptive error.
   }
   return createJestAdapter();
 }
