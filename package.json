@@ -161,6 +161,7 @@
   },
   "overrides": {
     "jest": "$jest",
+    "open": "^11.0.0",
     "eslint": {
       "minimatch": "^11.0.5"
     },

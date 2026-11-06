@@ -13,6 +13,15 @@ on:
         description: "Extra snyk arguments (e.g. --severity-threshold=high). SARIF output is always enabled."
         required: false
         default: ""
+      snyk-fail-on:
+        description: "When Snyk should fail the scan: all, upgradable, or patchable. Defaults to upgradable."
+        type: choice
+        options:
+          - upgradable
+          - all
+          - patchable
+        required: false
+        default: upgradable
 
 permissions:
   actions: read
@@ -24,5 +33,6 @@ jobs:
     uses: decaf-ts/reusable-actions/.github/workflows/snyk-analysis.yaml@master
     with:
       args: ${{ inputs.args }}
+      snyk-fail-on: ${{ inputs.snyk-fail-on }}
       strict-out-of-sync: false
     secrets: inherit

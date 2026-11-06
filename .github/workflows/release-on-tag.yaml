@@ -12,11 +12,22 @@ on:
       - '[0-9]+.[0-9]+.[0-9]+'
       - '!*-no-ci'
   workflow_dispatch:
+    inputs:
+      snyk-fail-on:
+        description: "When Snyk should fail the release gate: all, upgradable, or patchable. Defaults to upgradable."
+        type: choice
+        options:
+          - upgradable
+          - all
+          - patchable
+        required: false
+        default: upgradable
 
 jobs:
   deploy:
     uses: decaf-ts/reusable-actions/.github/workflows/release-on-tag.yaml@master
     with:
+      snyk-fail-on: ${{ inputs.snyk-fail-on || 'upgradable' }}
       strict-out-of-sync: false
     permissions:
       contents: write
