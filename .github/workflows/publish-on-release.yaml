@@ -9,8 +9,23 @@ on:
     types:
       - published
   workflow_dispatch:
+    inputs:
+      staged-publishing:
+        description: "Stage the npm package for approval instead of publishing it directly."
+        type: boolean
+        required: false
+        default: false
 
 jobs:
   build:
     uses: decaf-ts/reusable-actions/.github/workflows/publish-on-release.yaml@master
-    secrets: inherit
+    with:
+      staged-publishing: ${{ inputs.staged-publishing || false }}
+    permissions:
+      contents: read
+      packages: read
+      id-token: write
+    secrets:
+      CONSECUTIVE_ACTION_TRIGGER: ${{ secrets.CONSECUTIVE_ACTION_TRIGGER }}
+      GH_PAT: ${{ secrets.GH_PAT }}
+      GH_TOKEN: ${{ secrets.GH_TOKEN }}
