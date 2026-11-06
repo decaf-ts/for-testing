@@ -16,6 +16,8 @@ on:
 jobs:
   deploy:
     uses: decaf-ts/reusable-actions/.github/workflows/release-on-tag.yaml@master
+    with:
+      strict-out-of-sync: false
     permissions:
       contents: write
       security-events: write

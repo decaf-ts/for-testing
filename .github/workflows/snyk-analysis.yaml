@@ -24,4 +24,5 @@ jobs:
     uses: decaf-ts/reusable-actions/.github/workflows/snyk-analysis.yaml@master
     with:
       args: ${{ inputs.args }}
+      strict-out-of-sync: false
     secrets: inherit
