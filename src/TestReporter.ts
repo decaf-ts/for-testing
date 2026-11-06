@@ -322,11 +322,15 @@ export class TestReporter {
   private async importHelper(): Promise<Record<string, unknown>> {
     const specifier = `${dependencies[0]}/helper`;
     try {
-      return (await normalizeImport(
-        import(`${specifier}.js`)
-      )) as Record<string, unknown>;
+      return (await normalizeImport(import(`${specifier}.js`))) as Record<
+        string,
+        unknown
+      >;
     } catch {
-      return (await normalizeImport(import(specifier))) as Record<string, unknown>;
+      return (await normalizeImport(import(specifier))) as Record<
+        string,
+        unknown
+      >;
     }
   }
 
@@ -398,8 +402,8 @@ export class TestReporter {
   ) {
     try {
       let attachFunction:
-        | typeof this.reportMessage
-        | typeof this.reportAttachment = this.reportMessage.bind(this);
+        typeof this.reportMessage | typeof this.reportAttachment =
+        this.reportMessage.bind(this);
       let extension: ".png" | ".txt" | ".md" | ".json" = ".txt";
 
       let finalData = data;
@@ -443,7 +447,8 @@ export class TestReporter {
       }
     } catch (e: unknown) {
       throw new Error(
-        `Could not store attach artifact ${reference} under to test report ${this.testCase} - ${e}`
+        `Could not store attach artifact ${reference} under to test report ${this.testCase} - ${e}`,
+        { cause: e }
       );
     }
   }
@@ -593,7 +598,9 @@ export class TestReporter {
       const json2md = await normalizeImport(import(`${dependencies[1]}`));
       txt = json2md([{ table: tableDef }]);
     } catch (e: unknown) {
-      throw new Error(`Could not convert JSON to Markdown - ${e}`);
+      throw new Error(`Could not convert JSON to Markdown - ${e}`, {
+        cause: e,
+      });
     }
 
     return this.report(reference, txt, "md");

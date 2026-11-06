@@ -161,6 +161,7 @@ describe("evidence collector upload hardening (S1)", () => {
     writeFile(ptp, "report.json", "{}");
     const envPath = writeFile(ptp, ".env", "SECRET=1");
     const tokenPath = writeFile(ptp, ".secrets/token.txt", "SECRET=2");
+    const secretsDir = path.dirname(tokenPath);
 
     collectEvidenceFromDir(ptp);
     const messages = warnings();
@@ -168,6 +169,12 @@ describe("evidence collector upload hardening (S1)", () => {
     expect(
       messages.some(
         (message) => /dotfile/i.test(message) && message.includes(envPath)
+      )
+    ).toBe(true);
+    expect(
+      messages.some(
+        (message) =>
+          /dot-directory/i.test(message) && message.includes(secretsDir)
       )
     ).toBe(true);
     expect(

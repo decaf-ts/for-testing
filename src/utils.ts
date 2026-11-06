@@ -100,7 +100,8 @@ export function runAndReport<R = string>(
     return cmd;
   } catch (e: unknown) {
     throw new Error(
-      `Unable to create reportable command runner for ${commandPrefix}: ${e}`
+      `Unable to create reportable command runner for ${commandPrefix}: ${e}`,
+      { cause: e }
     );
   }
 }

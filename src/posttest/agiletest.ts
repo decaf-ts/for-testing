@@ -1,5 +1,4 @@
 import fs from "node:fs";
-import { InternalError } from "@decaf-ts/db-decorators";
 import { boundResponseBody, type ProviderUploader } from "./core";
 
 /**
@@ -79,7 +78,7 @@ function authHeader(email: string, apiToken: string): string {
  * @param {string} payloadPath the written payload file path
  * @param {AgileTestCredentials | null} credentials the tenant credentials
  * @return {Promise<void>} resolves once the upload completed
- * @throws {InternalError} when the upload call fails
+ * @throws {Error} when the upload call fails
  * @memberOf module:for-testing
  */
 export async function pushPayloadToAgileTest(
@@ -105,7 +104,7 @@ export async function pushPayloadToAgileTest(
   );
   const responseText = await response.text();
   if (!response.ok) {
-    throw new InternalError(
+    throw new Error(
       `Failed to upload results to AgileTest (${response.status}): ${boundResponseBody(responseText)}`
     );
   }

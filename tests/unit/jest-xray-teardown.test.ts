@@ -163,6 +163,47 @@ describe("runJestXrayTeardown", () => {
     expect(payload.tests[0].evidence).toHaveLength(1);
   });
 
+  it("uses the newest versioned response artifact without attaching response files as evidence", async () => {
+    const assetsRoot = path.join(tempRoot, "assets");
+    const stepRoot = path.join(assetsRoot, "PTP-123 STEP-001");
+    const junitPath = path.join(tempRoot, "junit.xml");
+    fs.mkdirSync(stepRoot, { recursive: true });
+    fs.writeFileSync(
+      path.join(stepRoot, "response_v1.json"),
+      JSON.stringify({ status: "old", report: "older result" })
+    );
+    fs.writeFileSync(
+      path.join(stepRoot, "response_v3.json"),
+      JSON.stringify({ status: "Passed", report: "newest result" })
+    );
+    fs.writeFileSync(path.join(stepRoot, "capture.txt"), "screenshot note");
+    fs.writeFileSync(
+      junitPath,
+      [
+        "<testsuites>",
+        '  <testsuite name="PTP-123">',
+        '    <testcase classname="PTP-123" name="STEP 1 - versioned response"/>',
+        "  </testsuite>",
+        "</testsuites>",
+      ].join("\n")
+    );
+
+    process.env.ENABLE_XRAY_REPORT = "true";
+    process.env.TEST_REPORTER_STORAGE_PATH = assetsRoot;
+    process.env.JUNIT_PATH = junitPath;
+
+    await runJestXrayTeardown();
+
+    const payload = JSON.parse(fs.readFileSync(payloadPath, "utf8"));
+    expect(payload.tests[0].steps[0].actualResult).toContain("newest result");
+    expect(payload.tests[0].steps[0].actualResult).not.toContain("older result");
+    expect(
+      payload.tests[0].steps[0].evidences.map(
+        (item: { filename: string }) => item.filename
+      )
+    ).toEqual(["capture.txt"]);
+  });
+
   it("throws when the JUnit file is missing", async () => {
     process.env.ENABLE_XRAY_REPORT = "true";
     process.env.XRAY_CLIENT_ID = "client-id";

@@ -134,6 +134,8 @@ export const SHORTEN_MAX = 4000;
  * @memberOf module:for-testing
  */
 export const RESPONSE_FILENAME = "response.json";
+const isResponseFilename = (filename: string): boolean =>
+  /^response(?:_v\d+)?\.json$/i.test(filename);
 
 /**
  * @description A single base64-encoded evidence file ready for upload
@@ -469,6 +471,7 @@ export const createEvidenceFromFile = (
  * @param {boolean} [options.skipStepDirs] skip directories whose name
  * matches {@link STEP_KEY_PATTERN}
  * @param {string[]} [options.excludeFileNames] file names to skip
+ * @param {boolean} [options.excludeVersionedResponseFiles] skip versioned response artifacts
  * @param {boolean} [options.skipDotEntries] skip dot-prefixed files and
  * directories
  * @return {string[]} the collected file paths
@@ -479,6 +482,7 @@ export const collectFiles = (
   options?: {
     skipStepDirs?: boolean;
     excludeFileNames?: string[];
+    excludeVersionedResponseFiles?: boolean;
     skipDotEntries?: boolean;
   }
 ): string[] => {
@@ -493,7 +497,10 @@ export const collectFiles = (
     }
 
     if (entry.isFile()) {
-      if (options?.excludeFileNames?.includes(entry.name)) continue;
+      if (
+        options?.excludeFileNames?.includes(entry.name) ||
+        (options?.excludeVersionedResponseFiles && isResponseFilename(entry.name))
+      ) continue;
       files.push(entryPath);
     }
   }
@@ -556,12 +563,17 @@ const warnSkippedDotEntries = (directory: string): void => {
  * @param {object} [options] options forwarded to {@link collectFiles}
  * @param {boolean} [options.skipStepDirs] skip step-keyed directories
  * @param {string[]} [options.excludeFileNames] file names to skip
+ * @param {boolean} [options.excludeVersionedResponseFiles] skip response JSON artifacts
  * @return {Array<EvidenceAttachment>} the collected attachments
  * @memberOf module:for-testing
  */
 export const collectEvidenceFromDir = (
   dirPath: string,
-  options?: { skipStepDirs?: boolean; excludeFileNames?: string[] }
+  options?: {
+    skipStepDirs?: boolean;
+    excludeFileNames?: string[];
+    excludeVersionedResponseFiles?: boolean;
+  }
 ): EvidenceAttachment[] => {
   if (!fs.existsSync(dirPath) || !fs.statSync(dirPath).isDirectory()) return [];
 
@@ -632,8 +644,8 @@ export const collectEvidenceFromDir = (
 };
 
 /**
- * @description Reads a step's `response.json` artifact, when present
- * @summary Parses the response file inside an evidence directory and
+ * @description Reads a step's response JSON artifact, when present
+ * @summary Parses the newest versioned response file in an evidence directory and
  * returns its lowercased `status` and `report` text; unparsable or empty
  * files are skipped with a warning
  * @param {string} dirPath the evidence directory possibly holding a
@@ -645,7 +657,22 @@ export const collectEvidenceFromDir = (
 export const readStepResponseFromDir = (
   dirPath: string
 ): ResponseDetails | null => {
-  const responsePath = path.join(dirPath, RESPONSE_FILENAME);
+  if (!fs.existsSync(dirPath) || !fs.statSync(dirPath).isDirectory()) {
+    return null;
+  }
+
+  const responseFiles = fs
+    .readdirSync(dirPath)
+    .filter(isResponseFilename)
+    .sort((left, right) => {
+      const version = (name: string) =>
+        Number(name.match(/_v(\d+)\.json$/i)?.[1] || 1);
+      return version(right) - version(left);
+    });
+  const responsePath = path.join(
+    dirPath,
+    responseFiles[0] || RESPONSE_FILENAME
+  );
   if (!fs.existsSync(responsePath) || !fs.statSync(responsePath).isFile()) {
     return null;
   }
@@ -1114,6 +1141,7 @@ export const buildAssetBuckets = (
       const executionItem = extractExecutionItem(entryName);
       const evidence = collectEvidenceFromDir(entryPath, {
         excludeFileNames: [RESPONSE_FILENAME],
+        excludeVersionedResponseFiles: true,
       });
       const responseDetails = readStepResponseFromDir(entryPath);
 

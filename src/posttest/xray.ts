@@ -11,7 +11,8 @@ import { boundResponseBody, type ProviderUploader } from "./core";
  */
 const XRAY_AUTH_URL = "https://xray.cloud.getxray.app/api/v2/authenticate";
 /** @constant XRAY_IMPORT_URL the Xray execution import endpoint */
-const XRAY_IMPORT_URL = "https://xray.cloud.getxray.app/api/v2/import/execution";
+const XRAY_IMPORT_URL =
+  "https://xray.cloud.getxray.app/api/v2/import/execution";
 /** @constant XRAY_GRAPHQL_URL the Xray GraphQL endpoint */
 const XRAY_GRAPHQL_URL = "https://xray.cloud.getxray.app/api/v2/graphql";
 
@@ -199,14 +200,52 @@ export async function syncPreconditionsToXray(
   );
   if (!testsWithPreconditions.length) return;
 
+  const preconditionLookupQuery = `
+    query FindPreconditions($jql: String!) {
+      getPreconditions(jql: $jql, limit: 100) {
+        results {
+          issueId
+          jira(fields: ["key"])
+        }
+      }
+    }
+  `;
+
+  const preconditionKeys = [
+    ...new Set(
+      testsWithPreconditions.flatMap((test) =>
+        test.preconditions.map((item) => item.key)
+      )
+    ),
+  ];
+  const preconditionLookup = await runXrayGraphql(
+    token,
+    preconditionLookupQuery,
+    {
+      jql: `key in (${preconditionKeys.map((key) => `"${key}"`).join(", ")})`,
+    }
+  );
+  const issueIds = new Map<string, string>();
+  const preconditionResults =
+    (
+      preconditionLookup as {
+        getPreconditions?: {
+          results?: Array<{ issueId?: string; jira?: unknown }>;
+        };
+      } | null
+    )?.getPreconditions?.results || [];
+  for (const precondition of preconditionResults) {
+    const jira = precondition.jira as
+      { key?: string; fields?: { key?: string } } | undefined;
+    const key = jira?.key || jira?.fields?.key;
+    if (key && precondition.issueId) issueIds.set(key, precondition.issueId);
+  }
+
   const lookupQuery = `
     query FindTestByKey($jql: String!) {
       getTests(jql: $jql, limit: 1) {
         results {
           issueId
-          testType {
-            name
-          }
           preconditions(limit: 100) {
             results {
               issueId
@@ -215,6 +254,18 @@ export async function syncPreconditionsToXray(
             }
           }
         }
+      }
+    }
+  `;
+
+  const addPreconditionsMutation = `
+    mutation AddPreconditions($issueId: String!, $preconditionIssueIds: [String]!) {
+      addPreconditionsToTest(
+        issueId: $issueId
+        preconditionIssueIds: $preconditionIssueIds
+      ) {
+        addedPreconditions
+        warning
       }
     }
   `;
@@ -240,18 +291,54 @@ export async function syncPreconditionsToXray(
       continue;
     }
 
+    const missingIssueIds: string[] = [];
+    const alreadyLinkedKeys: string[] = [];
     for (const precondition of test.preconditions) {
       const existing = findExistingAssociatedPrecondition(
         firstTest.preconditions?.results,
         precondition.key
       );
 
-      if (existing) continue;
-
-      console.warn(
-        `⚠️ No linked Xray precondition matched key "${precondition.key}" for ${test.testKey}. Existing preconditions are expected to be created and linked in Jira/Xray already.`
-      );
+      if (existing) {
+        alreadyLinkedKeys.push(precondition.key);
+        continue;
+      }
+      const issueId = issueIds.get(precondition.key);
+      if (!issueId) {
+        console.warn(
+          `⚠️ Precondition ${precondition.key} was not found in Xray; skipping link to ${test.testKey}.`
+        );
+        continue;
+      }
+      if (!missingIssueIds.includes(issueId)) missingIssueIds.push(issueId);
     }
+
+    if (!missingIssueIds.length) {
+      console.log(
+        `✅ No preconditions to link for ${test.testKey}. Already linked: ${alreadyLinkedKeys.join(", ") || "none"}.`
+      );
+      continue;
+    }
+
+    const result = await runXrayGraphql(token, addPreconditionsMutation, {
+      issueId: firstTest.issueId,
+      preconditionIssueIds: missingIssueIds,
+    });
+    const linkResult = (
+      result as {
+        addPreconditionsToTest?: {
+          addedPreconditions?: unknown[];
+          warning?: string;
+        };
+      } | null
+    )?.addPreconditionsToTest;
+    console.log(
+      `✅ Linked ${(linkResult?.addedPreconditions || missingIssueIds).length} precondition(s) to ${test.testKey}.`
+    );
+    if (linkResult?.warning)
+      console.warn(
+        `⚠️ Xray returned a warning while linking preconditions to ${test.testKey}: ${linkResult.warning}`
+      );
   }
 }
 
