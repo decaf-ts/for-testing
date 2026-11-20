@@ -379,6 +379,59 @@ so helpers added later become available through both paths without a breaking ch
 
 
 
+#### Standalone Storyboard workflows
+
+`StoryboardScenario<State>` supports an optional `flow` graph for long-running
+workflows. The existing screenshot/guide path is unchanged. Execute a graph in
+plain Node with `StoryboardRunner.runScenario(definition, { args, page, signal })`;
+Jest and Playwright Test are not used. Pure tasks need no browser. Browser actions
+use the provided Playwright-compatible page or the page assigned during initialization.
+
+A flow supplies a fresh `state` factory, an `initial` state name, named `tasks`
+and `conditions`, and a `states` map. Each state declares `actions`, ordered
+`transitions` (`when` names a condition; `to: null` finishes), and optional `onError`.
+Loops are transitions to earlier states. Optional `stopWhen` names an application
+stop condition checked before every state/action, so a stop request cannot be
+missed immediately before an operation. Actions can be existing `StoryboardAction`
+objects or `{ type: "task", name: "..." }`. Undefined task/condition/transition
+references are rejected before initialization. Failure to match a transition is
+an error, not an implicit stop.
+
+Tasks receive `{ state, args, page, signal, error }`. Shared state and the exact
+page survive state changes. `error` contains the most recent failure routed to
+an `onError` state. `initialize` and `finalize` are optional tasks; finalization
+runs after initialization failures, action failures, successful completion, or
+cancellation. The runner never clears storage or owns the page's lifecycle.
+Cancellation is checked between actions/transitions; long tasks must cooperate
+with `context.signal`. Cancellation bypasses application error transitions.
+
+```ts
+import { StoryboardRunner, type StoryboardScenario } from "@decaf-ts/for-testing/ui";
+
+const definition: StoryboardScenario<{ checks: number }> = {
+  id: "checks", section: "Example", title: "Three checks", route: "",
+  flow: {
+    initial: "check", state: () => ({ checks: 0 }),
+    tasks: { check: ({ state }) => { state.checks++; } },
+    conditions: { again: ({ state }) => state.checks < 3 },
+    states: {
+      check: {
+        actions: [{ type: "task", name: "check" }],
+        transitions: [{ when: "again", to: "check" }, { to: null }],
+      },
+    },
+  },
+};
+const result = await StoryboardRunner.runScenario(definition);
+// result.checks === 3
+```
+
+Use `new StoryboardRunner(config).runWithPage(page)` for existing screenshot
+storyboards; it retains isolated contexts, screenshots, and guide generation.
+Workflow definitions must use `runScenario` explicitly, so the screenshot runner
+cannot silently discard their flow.
+
+
 ### Related
 
 [![Readme Card](https://github-readme-stats.vercel.app/api/pin/?username=decaf-ts&repo=for-testing)](https://github.com/decaf-ts/for-testing)

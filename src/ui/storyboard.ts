@@ -1,3 +1,4 @@
+import { runStoryboardFlow, type StoryboardFlow, type StoryboardFlowOptions } from "./storyboard-flow";
 import path from "node:path";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import {
@@ -51,7 +52,9 @@ export interface StoryboardHighlight {
   color?: string;
 }
 
-export interface StoryboardScenario {
+export interface StoryboardScenario<State = Record<string, unknown>> {
+  /** Optional long-running graph; execute with StoryboardRunner.runScenario on a shared session. */
+  flow?: StoryboardFlow<State>;
   id: string;
   section: string;
   title: string;
@@ -175,8 +178,15 @@ const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number, message: (
 
 /** Executes storyboard entries sequentially and writes their screenshots and Markdown guide. */
 export class StoryboardRunner extends PerformanceRunner<StoryboardContext> {
+  /** Execute an opt-in workflow without screenshot isolation or a test framework. */
+  static async runScenario<State>(scenario: StoryboardScenario<State>, options: StoryboardFlowOptions = {}): Promise<State> {
+    if (!scenario.flow) throw new Error("StoryboardRunner.runScenario requires a scenario.flow definition.");
+    return runStoryboardFlow(scenario.flow, applyStoryboardAction, options);
+  }
+
   private readonly performanceScenario: PerformanceScenario<StoryboardContext>;
   constructor(readonly config: StoryboardConfig) {
+    if (config.scenarios.some(entry => entry.flow)) throw new Error("Use StoryboardRunner.runScenario for workflow definitions.");
     const scenario: PerformanceScenario<StoryboardContext> = { name: config.title, failOnError: true, enableCanvas: false, baseContext: { page: undefined as unknown as StoryboardPage, baseUrl: config.baseUrl ?? "", screenshotsDir: config.screenshotsDir, config }, phases: config.scenarios.map((entry, scenarioIndex) => ({ name: entry.title, config: { iterations: 1, mode: "sequential", metadata: { scenarioIndex } } satisfies PhaseConfig<StoryboardContext> })) as Phase<StoryboardContext>[], handler: (payload) => this.capture(payload) };
     super(scenario); this.performanceScenario = scenario;
   }
